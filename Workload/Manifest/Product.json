@@ -1,0 +1,81 @@
+{
+    "name": "Product",
+    "version": "1.100",
+    "displayName": "Workload_Display_Name",
+    "fullDisplayName": "Workload_Full_Display_Name",
+    "description": "Workload_Description",
+    "favicon": "assets/images/Workload_Icon.png",
+    "icon": {
+      "name": "assets/images/Workload_Icon.png"
+    },
+    "homePage": {
+      "learningMaterials": [
+        {
+          "title": "Workload_Hub_GetStarted_1_Title",
+          "introduction": "Workload_Hub_GetStarted_1_Sub_Title",
+          "description": "Workload_Hub_GetStarted_1_Description",
+          "image": "assets/images/Workload_Hub_GetStarted_1.png",
+          "link": "https://github.com/Azure-Samples/azure-iot-accelerator-workload-for-fabric-rti"
+        }
+      ],
+      "newSection": {
+        "customActions": [
+        ]},
+        "recommendedItemTypes": [
+          "IoTSolution"
+        ]
+    },
+    "createExperience": {
+      "description": "Workload_Description",
+      "cards": [
+        {
+          "title": "IoTSolutionItem_DisplayName",
+          "description": "IoTSolutionItem_Description",
+          "icon": {
+            "name": "assets/images/IoTSolutionItem_Icon.png"
+          },
+          "icon_small": {
+            "name": "assets/images/IoTSolutionItem_Icon.png"
+          },
+          "availableIn": [
+            "home",
+            "create-hub",
+            "workspace-plus-new",
+            "workspace-plus-new-teams"
+          ],
+          "itemType": "IoTSolution",
+          "createItemDialogConfig": {
+            "onCreationFailure": { "action": "item.onCreationFailure" },
+            "onCreationSuccess": { "action": "item.onCreationSuccess" }
+          }
+        }
+      ]
+    },
+    "productDetail": {
+      "publisher": "Sample",
+      "slogan": "Workload_Hub_Slogan",
+      "description": "Workload_Hub_Description",
+      "image": {
+        "mediaType": 0,
+        "source": "assets/images/Workload_Hub_Banner.png"
+      },
+      "slideMedia": [
+        {
+          "mediaType": 1,
+          "source": "https://youtube.com/embed/UNgpBOCvwa8?si=KwsR879MaVZd5CJi"
+        },
+        {
+          "mediaType": 0,
+          "source": "assets/images/Workload_Hub_SlideMedia_1.png"
+        }
+      ],
+        "supportLink": {
+          "documentation": {"url": "https://github.com/Azure-Samples/azure-iot-accelerator-workload-for-fabric-rti"},
+          "certification": {"url": "https://learn.microsoft.com/en-us/fabric/extensibility-toolkit/extensibility-toolkit-overview"},
+          "help": {"url": "https://github.com/Azure-Samples/azure-iot-accelerator-workload-for-fabric-rti"},
+          "privacy": {"url": "https://learn.microsoft.com/en-us/fabric/extensibility-toolkit/extensibility-toolkit-overview"},
+          "terms": {"url": "https://learn.microsoft.com/en-us/fabric/extensibility-toolkit/extensibility-toolkit-overview"},
+          "license": {"url": "https://azuremarketplace.microsoft.com"} 
+      }
+    }
+}

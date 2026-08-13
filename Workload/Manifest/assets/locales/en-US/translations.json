@@ -1,0 +1,13 @@
+{
+    "Workload_Display_Name": "Azure IoT Solution Accelerator",
+    "Workload_Full_Display_Name": "Azure IoT Solution Accelerator",
+    "Workload_Description": "Transform device telemetry into actionable operational intelligence with automated data ingestion, real-time dashboards, event-driven workflows, and AI-powered exploration experiences.",
+    "Workload_Hub_Slogan": "Transform device telemetry into actionable operational intelligence with automated data ingestion, real-time dashboards, event-driven workflows, and AI-powered exploration experiences.",
+    "Workload_Hub_Description": "Azure IoT Solution Accelerator for Microsoft Fabric Real-Time Intelligence enables customers to accelerate operational analytics, monitoring, alerting, and AI-driven insights using data from Azure IoT solutions.\n\n**With this accelerator you can:**\n\n• Configure ingestion of IoT Hub telemetry and device twin changes into a Fabric Eventhouse.\n• Build Real-Time Dashboards over live device telemetry and properties.\n• Set up alerts with Activator and explore your data using a Data Agent.\n• Optionally enrich raw device data with semantic context from DTDL device models and generate query-ready modeled tables.\n\n**Designed for:**\n\n• Azure IoT Hub customers.\n• Azure IoT Hub and Device Provisioning Service (DPS) customers.\n• Customers building new IoT analytics solutions on Microsoft Fabric.\n• Partners creating industry-specific solutions with Azure IoT and Fabric.",
+    "Workload_Hub_GetStarted_1_Title": "Get started with the Azure IoT Solution Accelerator",
+    "Workload_Hub_GetStarted_1_Sub_Title": "Connect yor IoT data to Microsoft Fabric",
+    "Workload_Hub_GetStarted_1_Description": "Learn how to ingest, model, and visualize your IoT device data in Microsoft Fabric.",
+    "IoTSolutionItem_DisplayName": "Azure IoT Solution Accelerator",
+    "IoTSolutionItem_DisplayName_Plural": "Azure IoT Solution Accelerators",
+    "IoTSolutionItem_Description": "Set up an IoT solution with IoT Hub, data ingestion, and real-time dashboards"
+}
