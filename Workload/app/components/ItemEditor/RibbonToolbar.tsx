@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import React from "react";
 import { Toolbar, ToolbarDivider } from '@fluentui/react-toolbar';
 import { RibbonToolbarAction, FluentIconComponent } from './RibbonToolbarAction';

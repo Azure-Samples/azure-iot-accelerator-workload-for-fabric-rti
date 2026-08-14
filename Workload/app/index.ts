@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import { bootstrap } from '@ms-fabric/workload-client';
 import './i18n';
 

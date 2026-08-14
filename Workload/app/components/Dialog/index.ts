@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 /**
  * @fileoverview Dialog Component - Simple dialog interface with wizard-like styling
  * 

@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import { createLightTheme } from "@fluentui/react-components";
 
 const brandFabric = {

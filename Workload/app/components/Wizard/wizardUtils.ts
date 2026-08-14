@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 export const WIZARD_COMPLETION_ERROR =
     "Failed to save your configuration. Review the previous steps and try again.";
 

@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 // --- Page API
 
 import { OpenMode, WorkloadClientAPI } from "@ms-fabric/workload-client";

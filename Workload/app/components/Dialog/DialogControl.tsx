@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import React from "react";
 import { Button, Text } from "@fluentui/react-components";
 import "./Dialog.scss";

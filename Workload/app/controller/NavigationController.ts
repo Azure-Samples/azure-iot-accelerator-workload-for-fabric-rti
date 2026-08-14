@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 // --- Navigation API
 
 import { WorkloadClientAPI, BeforeNavigateAwayData, BeforeNavigateAwayResult, AfterNavigateAwayData, OpenBrowserTabParams } from "@ms-fabric/workload-client";

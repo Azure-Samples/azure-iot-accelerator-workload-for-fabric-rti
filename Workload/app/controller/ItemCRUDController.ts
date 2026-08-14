@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import { GetItemDefinitionResult, GetItemResult, ItemDefinitionPart, PayloadType, UpdateItemDefinitionPayload, UpdateItemDefinitionResult, WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { Item } from "../clients/FabricPlatformTypes";
 import { decodeJsonFromBase64, encodeJsonToBase64 } from "../utils/base64";

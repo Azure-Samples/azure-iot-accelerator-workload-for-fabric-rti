@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { RAW_EVENT_NORMALIZATION_KQL } from "./RawEventKql.ts";

@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 function bytesToBinary(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) {

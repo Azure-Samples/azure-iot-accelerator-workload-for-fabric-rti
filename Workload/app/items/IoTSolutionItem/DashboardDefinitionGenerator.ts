@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 /**
  * Generates a Fabric Real-Time Dashboard definition JSON from inspected
  * telemetry and property fields. The output follows the Kusto dashboard

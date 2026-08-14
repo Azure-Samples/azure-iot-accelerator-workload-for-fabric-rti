@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 /**
  * Normalize each raw Eventstream row into the legacy logical contract used by
  * the workload:

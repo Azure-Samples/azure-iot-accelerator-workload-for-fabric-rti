@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 /**
  * Manifest API implementation
  * Handles serving of manifest metadata and package files

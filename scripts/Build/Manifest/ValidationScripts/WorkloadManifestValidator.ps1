@@ -1,4 +1,7 @@
-﻿param (
+﻿# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+param (
     [string]$inputDirectory,
     [string]$outputDirectory
 )

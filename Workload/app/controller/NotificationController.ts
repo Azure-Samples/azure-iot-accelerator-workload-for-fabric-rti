@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import { NotificationToastDuration, NotificationType, WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { Dispatch, SetStateAction } from "react";
 

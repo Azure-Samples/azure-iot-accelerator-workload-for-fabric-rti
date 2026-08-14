@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 export const IOT_HUB_ROUTING_API_VERSION = "2026-05-01-preview";
 
 interface NamedResource {

@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import React from "react";
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { WizardControl, WizardStep, WizardStepProps } from "../../components/Wizard";

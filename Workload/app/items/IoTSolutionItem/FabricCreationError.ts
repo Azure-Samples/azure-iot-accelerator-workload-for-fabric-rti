@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 type ErrorRecord = Record<string, unknown>;
 
 function asRecord(value: unknown): ErrorRecord | undefined {

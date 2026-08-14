@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 param(
     # The GUID of the workspace to use for the developer environment
     [string]$DevWorkspaceId,

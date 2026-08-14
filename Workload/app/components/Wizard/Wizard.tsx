@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 /**
  * @fileoverview WizardControl Component - Step-by-step interface for guided workflows
  * 

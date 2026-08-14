@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 /**
  * Interface representing the definition of an IoT Solution item.
  * This information is stored in Fabric as the Item definition.

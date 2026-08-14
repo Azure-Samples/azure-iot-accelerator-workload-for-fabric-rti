@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 param (
     # Environment that should be build
     [ValidateSet("dev", "test", "prod")]

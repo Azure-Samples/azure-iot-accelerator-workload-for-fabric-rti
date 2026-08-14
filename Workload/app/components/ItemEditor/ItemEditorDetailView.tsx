@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import React from "react";
 import { ArrowLeft20Regular } from "@fluentui/react-icons";
 import { ItemEditorDefaultView, ItemEditorDefaultViewProps } from "./ItemEditorDefaultView";

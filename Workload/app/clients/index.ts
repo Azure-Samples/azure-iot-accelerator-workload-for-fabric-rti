@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 // Main API Client Infrastructure
 export { FabricPlatformClient } from './FabricPlatformClient';
 export { FabricPlatformAPIClient } from './FabricPlatformAPIClient';

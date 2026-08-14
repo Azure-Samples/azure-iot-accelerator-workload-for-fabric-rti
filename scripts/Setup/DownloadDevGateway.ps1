@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 param (
     # Force flag to overwrite existing configurations and don't prompt the user
     # If not provided, it will default to false.

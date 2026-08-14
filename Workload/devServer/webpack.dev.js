@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 const { merge } = require('webpack-merge');
 const baseConfig = require('../webpack.config.js');
 const express = require("express");

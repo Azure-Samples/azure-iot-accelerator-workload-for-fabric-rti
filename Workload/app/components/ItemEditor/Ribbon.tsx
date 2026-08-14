@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import React from "react";
 import { Tab, TabList } from '@fluentui/react-tabs';
 import { Button, Tooltip } from '@fluentui/react-components';

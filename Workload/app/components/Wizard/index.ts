@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 /**
  * @fileoverview Wizard Component - Step-by-step interface for multi-stage processes
  * 

@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import { AccessToken, WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { EnvironmentConstants } from "../../constants";
 import { callAcquireFrontendAccessToken } from "../../controller/AuthenticationController";

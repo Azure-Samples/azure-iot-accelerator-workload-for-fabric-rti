@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 <#
 .SYNOPSIS
     Backwards compatibility wrapper for SetupWorkload.ps1

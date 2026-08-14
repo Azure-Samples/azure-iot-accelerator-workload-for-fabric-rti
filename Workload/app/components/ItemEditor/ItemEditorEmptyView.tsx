@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import React, { ReactNode } from "react";
 import { Stack, IStackTokens } from "@fluentui/react";
 import { Text, Button } from "@fluentui/react-components";

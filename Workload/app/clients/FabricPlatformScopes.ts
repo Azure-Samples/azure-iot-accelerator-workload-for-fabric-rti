@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 /**
  * Microsoft Fabric Platform API Scopes
  * Centralized definitions for OAuth scopes used by different clients

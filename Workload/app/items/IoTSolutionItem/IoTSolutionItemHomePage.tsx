@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import React from "react";
 import { Text } from "@fluentui/react-components";
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";

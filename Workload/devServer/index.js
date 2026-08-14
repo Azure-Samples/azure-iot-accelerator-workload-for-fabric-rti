@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 /**
  * DevServer APIs index file
  * Exports manifest API and dev server components registration

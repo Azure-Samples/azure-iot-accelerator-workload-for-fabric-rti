@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 /**
  * Parses a DTDL (Digital Twin Definition Language) model file and extracts
  * telemetry and property capabilities with their Kusto column types.

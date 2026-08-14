@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 import React from "react";
 import { WizardStepProps } from "../../../components/Wizard";
 import copilotGuideImg from "../../../assets/items/IoTSolutionItem/ai-guide/copilot.png";

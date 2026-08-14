@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 # Function to write errors to file
 param (
     [string]$outputDirectory

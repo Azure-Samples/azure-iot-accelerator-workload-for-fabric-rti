@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 <#
 .SYNOPSIS
     Sets up a new Microsoft Fabric Workload for development

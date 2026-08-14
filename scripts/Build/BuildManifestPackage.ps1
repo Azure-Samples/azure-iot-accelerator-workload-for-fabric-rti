@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 param (
     #Indicates if the files should be validated before building the package
     [boolean]$ValidateFiles = $false,

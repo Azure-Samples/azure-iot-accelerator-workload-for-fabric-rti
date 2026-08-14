@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 /**
  * TypeScript interfaces for Fabric Platform API data models
  * Based on the platform.json definitions from microsoft/fabric-rest-api-specs
