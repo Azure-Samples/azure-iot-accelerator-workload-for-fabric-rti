@@ -104,7 +104,8 @@ interface TableSetupStepProps extends WizardStepProps {
  * Raw data table configuration.
  *
  * Two modes:
- * - Create: creates raw KQL tables (data: string, headers: dynamic) in the selected
+ * - Create: creates raw KQL tables (data: string, headers: dynamic,
+ *   userProperties: dynamic) in the selected
  *   Eventhouse database, tagged with @iot.meta docstrings. The Eventstream step then
  *   wires Custom Endpoint → SQL transform → processed ingestion into these tables.
  * - Reuse: pick existing raw telemetry/properties tables already fed by an Eventstream
@@ -337,7 +338,7 @@ export function TableSetupStep({
     const commands: { label: string; csl: string }[] = [
       {
         label: `Create table ${telemetryTableName}`,
-        csl: `.create table ${telemetryTableName} (data: string, headers: dynamic)`,
+        csl: `.create table ${telemetryTableName} (data: string, headers: dynamic, userProperties: dynamic)`,
       },
       {
         label: `Set docstring on ${telemetryTableName}`,
@@ -349,7 +350,7 @@ export function TableSetupStep({
       },
       {
         label: `Create table ${propertiesTableName}`,
-        csl: `.create table ${propertiesTableName} (data: string, headers: dynamic)`,
+        csl: `.create table ${propertiesTableName} (data: string, headers: dynamic, userProperties: dynamic)`,
       },
       {
         label: `Set docstring on ${propertiesTableName}`,

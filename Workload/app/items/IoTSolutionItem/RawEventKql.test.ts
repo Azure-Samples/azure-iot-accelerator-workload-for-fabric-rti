@@ -19,4 +19,12 @@ test("normalizes legacy and native Eventstream row formats", () => {
   assert.match(RAW_EVENT_NORMALIZATION_KQL, /headers\.IoTConnectionDeviceId/);
   assert.match(RAW_EVENT_NORMALIZATION_KQL, /headers\.IoTEnqueueTime/);
   assert.match(RAW_EVENT_NORMALIZATION_KQL, /headers\.IoTSubject/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /userProperties/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_specversion/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_id/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_source/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_type/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_deviceid/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_time/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_iothubdtsubject/);
 });

@@ -35,8 +35,8 @@ function generateSuffix(): string {
  * Build the Eventstream topology JSON for:
  *   Custom Endpoint source → Default Stream → SQL operator → Eventhouse (processed ingestion)
  *
- * The SQL operator extracts the raw JSON body and EventHub metadata headers,
- * outputting two columns: data (string) and headers (dynamic).
+ * The SQL operator extracts the raw JSON body, EventHub metadata headers, and
+ * AMQP application properties, outputting three columns.
  * The destination uses ProcessedIngestion mode with the target table pre-configured.
  */
 function buildEventstreamTopology(
@@ -53,7 +53,8 @@ function buildEventstreamTopology(
   const sqlQuery =
     ` SELECT\n` +
     `     JSON_STRINGIFY(stream) AS data,\n` +
-    `     GETMETADATAPROPERTYVALUE(stream, '[EventHub]') AS headers\n` +
+    `     GETMETADATAPROPERTYVALUE(stream, '[EventHub]') AS headers,\n` +
+    `     GETMETADATAPROPERTYVALUE(stream, '[User]') AS userProperties\n` +
     ` INTO [${destName}]\n` +
     ` FROM [${defaultStreamName}] AS stream`;
 
