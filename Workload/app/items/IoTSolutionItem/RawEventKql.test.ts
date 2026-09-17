@@ -19,4 +19,22 @@ test("normalizes legacy and native Eventstream row formats", () => {
   assert.match(RAW_EVENT_NORMALIZATION_KQL, /headers\.IoTConnectionDeviceId/);
   assert.match(RAW_EVENT_NORMALIZATION_KQL, /headers\.IoTEnqueueTime/);
   assert.match(RAW_EVENT_NORMALIZATION_KQL, /headers\.IoTSubject/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /userProperties/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_specversion/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_id/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_source/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_type/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_deviceid/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_time/);
+  assert.match(RAW_EVENT_NORMALIZATION_KQL, /cloudEvents_iothubdtsubject/);
+});
+
+test("references userProperties via column_ifexists so tables created before this column existed keep compiling", () => {
+  assert.match(
+    RAW_EVENT_NORMALIZATION_KQL,
+    /column_ifexists\("userProperties",\s*""\)/,
+  );
+  // Guard against a regression back to a direct, unguarded column reference,
+  // which would break query compilation for any pre-existing raw table.
+  assert.doesNotMatch(RAW_EVENT_NORMALIZATION_KQL, /parse_json\(tostring\(userProperties\)\)/);
 });
