@@ -14,10 +14,19 @@
  *
  * Native IoT Hub Eventstream routes emit CloudEvents. Telemetry is either in
  * `data` or JSON encoded in `data_base64`; twin changes are in `data`.
+ *
+ * `userProperties` is read via column_ifexists() rather than a direct column
+ * reference. Raw tables created before this column existed don't have it, and
+ * a direct reference to a missing column fails KQL query compilation for
+ * every existing customer's dashboards/models the moment they pick up this
+ * code, even though their table/Eventstream pipeline is otherwise unchanged.
+ * column_ifexists() falls back to "" when the column is absent, so
+ * __isBinaryCloudEvent evaluates to false and the query behaves exactly as it
+ * did before this column was introduced.
  */
 export const RAW_EVENT_NORMALIZATION_KQL = [
   "| extend __rawEvent = parse_json(data)",
-  "| extend __userProperties = parse_json(tostring(userProperties))",
+  '| extend __userProperties = parse_json(tostring(column_ifexists("userProperties", "")))',
   '| extend __isStructuredCloudEvent = tostring(__rawEvent.specversion) == "1.0" and isnotempty(tostring(__rawEvent.id)) and isnotempty(tostring(__rawEvent.source)) and isnotempty(tostring(__rawEvent.type))',
   '| extend __isBinaryCloudEvent = tostring(__userProperties.cloudEvents_specversion) == "1.0" and isnotempty(tostring(__userProperties.cloudEvents_id)) and isnotempty(tostring(__userProperties.cloudEvents_source)) and isnotempty(tostring(__userProperties.cloudEvents_type))',
   "| extend __nativePayload = iff(isnotnull(__rawEvent.data), __rawEvent.data, parse_json(base64_decode_tostring(tostring(__rawEvent.data_base64))))",
