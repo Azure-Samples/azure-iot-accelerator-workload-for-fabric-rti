@@ -21,6 +21,7 @@ import {
   getFabricCreationErrorMessage,
   parseFabricErrorPayload,
 } from "../FabricCreationError";
+import { buildEventstreamTopology } from "../RawIngestion";
 import "../IoTSolutionItem.scss";
 
 const FABRIC_WRITE_SCOPE =
@@ -29,87 +30,6 @@ const FABRIC_API_BASE = "https://api.fabric.microsoft.com/v1";
 
 function generateSuffix(): string {
   return Math.random().toString(36).substring(2, 6);
-}
-
-/**
- * Build the Eventstream topology JSON for:
- *   Custom Endpoint source → Default Stream → SQL operator → Eventhouse (processed ingestion)
- *
- * The SQL operator extracts the raw JSON body and EventHub metadata headers,
- * outputting two columns: data (string) and headers (dynamic).
- * The destination uses ProcessedIngestion mode with the target table pre-configured.
- */
-function buildEventstreamTopology(
-  streamDisplayName: string,
-  workspaceId: string,
-  kqlDatabaseId: string,
-  databaseName: string,
-  tableName: string,
-): object {
-  const sourceName = "CustomEndpoint-Source";
-  const defaultStreamName = `${streamDisplayName}-stream`;
-  const destName = "Eventhouse";
-
-  const sqlQuery =
-    ` SELECT\n` +
-    `     JSON_STRINGIFY(stream) AS data,\n` +
-    `     GETMETADATAPROPERTYVALUE(stream, '[EventHub]') AS headers\n` +
-    ` INTO [${destName}]\n` +
-    ` FROM [${defaultStreamName}] AS stream`;
-
-  return {
-    sources: [
-      {
-        name: sourceName,
-        type: "CustomEndpoint",
-        properties: {},
-      },
-    ],
-    destinations: [
-      {
-        name: destName,
-        type: "Eventhouse",
-        properties: {
-          dataIngestionMode: "ProcessedIngestion",
-          workspaceId: workspaceId,
-          itemId: kqlDatabaseId,
-          databaseName: databaseName,
-          tableName: tableName,
-          inputSerialization: {
-            type: "Json",
-            properties: { encoding: "UTF8" },
-          },
-        },
-        inputNodes: [{ name: "SqlCode" }],
-        inputSchemas: [
-          { name: "SqlCode", schema: { columns: [] } },
-        ],
-      },
-    ],
-    streams: [
-      {
-        name: defaultStreamName,
-        type: "DefaultStream",
-        properties: {},
-        inputNodes: [{ name: sourceName }],
-      },
-    ],
-    operators: [
-      {
-        name: "SqlCode",
-        type: "SQL",
-        inputNodes: [{ name: defaultStreamName }],
-        properties: {
-          query: sqlQuery,
-          advancedSettings: null,
-        },
-        inputSchemas: [
-          { name: defaultStreamName, schema: { columns: [] } },
-        ],
-      },
-    ],
-    compatibilityLevel: "1.1",
-  };
 }
 
 interface CreationStatus {
@@ -139,7 +59,7 @@ interface EventstreamStepProps extends WizardStepProps {
  * - Properties stream: routes device twin property changes → KQL table
  *
  * Each Eventstream will have a Custom Endpoint source (Event Hub-compatible)
- * and a KQL Database destination using the mappings from the table setup step.
+ * and a KQL Database destination for data, headers, and user_headers.
  */
 export function EventstreamStep({
   stepIndex,

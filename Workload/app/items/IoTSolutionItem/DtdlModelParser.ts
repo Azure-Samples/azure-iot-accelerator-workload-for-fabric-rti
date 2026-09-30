@@ -267,7 +267,7 @@ export function parseDtdlModel(modelJson: unknown): DtdlParseResult {
    * Walk an interface's contents and `extends` chain, collecting Telemetry/Property capabilities.
    * When `componentName` is set, the capability belongs to a component: its column name is
    * prefixed as `<componentName>_<leafName>`, matching how component data arrives (telemetry with
-   * IoTSubject=<componentName>, reported properties nested under the component key with __t="c").
+   * cloudEvents_iothubdtsubject=<componentName>, reported properties nested under the component key with __t="c").
    *
    * `visited` guards against `extends` cycles within a single interface subtree. A fresh set is used
    * for each component subtree so that the same component interface can be reused under different
