@@ -95,7 +95,7 @@ export function IoTSolutionItemDashboardWizard({
         cancel: "Cancel",
       }}
       onFirstStepBack={onBack}
-      persistKey={`iot-wizard-v4-dashboard-${itemId}`}
+      persistKey={`iot-wizard-v5-dashboard-${itemId}`}
     />
   );
 }

@@ -22,6 +22,12 @@ import {
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { WizardStepProps } from "../../../components/Wizard";
 import { acquireTokenWithConsent } from "../../../controller/AuthenticationController";
+import {
+  RAW_TABLE_SCHEMA,
+  buildRawTableCommand,
+  validateRawEventstreamTopology,
+  validateRawTableSchema,
+} from "../RawIngestion";
 import "../IoTSolutionItem.scss";
 
 const KUSTO_SCOPE = "https://kusto.kusto.windows.net/.default";
@@ -104,13 +110,14 @@ interface TableSetupStepProps extends WizardStepProps {
  * Raw data table configuration.
  *
  * Two modes:
- * - Create: creates raw KQL tables (data: string, headers: dynamic) in the selected
+ * - Create: creates raw KQL tables (data: string, headers: dynamic, user_headers: dynamic) in the selected
  *   Eventhouse database, tagged with @iot.meta docstrings. The Eventstream step then
  *   wires Custom Endpoint → SQL transform → processed ingestion into these tables.
  * - Reuse: pick existing raw telemetry/properties tables already fed by an Eventstream
  *   custom endpoint in this workspace. Reusing skips Eventstream creation (the existing
  *   streams are used) and appends this IoT Hub as an additional source on the selected
- *   tables' docstrings (@iot.meta source=<hub>).
+ *   tables' docstrings (@iot.meta source=<hub>). Both the schema and the feeding
+ *   SQL projections must already support binary CloudEvents before reuse.
  */
 export function TableSetupStep({
   stepIndex,
@@ -201,6 +208,25 @@ export function TableSetupStep({
     }
   };
 
+  const validateTable = async (token: string, tableName: string): Promise<void> => {
+    const result = await executeKqlMgmt(
+      token,
+      databaseName,
+      `.show table ${tableName} schema as json | project Schema`
+    );
+    const schemaJson = (result?.Tables?.[0]?.Rows || result?.[0]?.Rows)?.[0]?.[0];
+    if (typeof schemaJson !== "string") {
+      throw new Error(`Could not read the schema of "${tableName}". Refresh and verify access to the selected database.`);
+    }
+    let schema: unknown;
+    try {
+      schema = JSON.parse(schemaJson);
+    } catch {
+      throw new Error(`Could not read the schema of "${tableName}". The database returned invalid schema metadata.`);
+    }
+    validateRawTableSchema(tableName, schema);
+  };
+
   /** Acquire a Fabric API token (Item.ReadWrite.All) with interactive consent fallback. */
   const acquireFabricToken = async (): Promise<string> => {
     try {
@@ -225,8 +251,9 @@ export function TableSetupStep({
    */
   const fetchEndpointDetails = async (
     token: string,
-    eventstreamId: string
+    table: ReusableTable
   ): Promise<{ namespace?: string; eventHubName?: string; sourceId?: string }> => {
+    const eventstreamId = table.eventstreamId;
     const headers = { Authorization: authHeader(token) };
     const topoResp = await fetch(
       `${FABRIC_API_BASE}/workspaces/${workspaceId}/eventstreams/${eventstreamId}/topology`,
@@ -234,6 +261,11 @@ export function TableSetupStep({
     );
     if (!topoResp.ok) return {};
     const topology = await topoResp.json();
+    validateRawEventstreamTopology(table.eventstreamName, topology, {
+      tableName: table.tableName,
+      databaseId,
+      databaseName,
+    });
     const customSource = (topology.sources || []).find(
       (s: { type: string; id?: string }) => s.type === "CustomEndpoint"
     );
@@ -334,10 +366,11 @@ export function TableSetupStep({
       return;
     }
 
-    const commands: { label: string; csl: string }[] = [
+    const commands: { label: string; csl: string; rawTable?: string }[] = [
       {
         label: `Create table ${telemetryTableName}`,
-        csl: `.create table ${telemetryTableName} (data: string, headers: dynamic)`,
+        csl: buildRawTableCommand(telemetryTableName),
+        rawTable: telemetryTableName,
       },
       {
         label: `Set docstring on ${telemetryTableName}`,
@@ -349,7 +382,8 @@ export function TableSetupStep({
       },
       {
         label: `Create table ${propertiesTableName}`,
-        csl: `.create table ${propertiesTableName} (data: string, headers: dynamic)`,
+        csl: buildRawTableCommand(propertiesTableName),
+        rawTable: propertiesTableName,
       },
       {
         label: `Set docstring on ${propertiesTableName}`,
@@ -369,6 +403,9 @@ export function TableSetupStep({
       setCreationSteps([...statusArr]);
       try {
         await executeKqlMgmt(token, databaseName, commands[i].csl);
+        if (commands[i].rawTable) {
+          await validateTable(token, commands[i].rawTable);
+        }
         statusArr[i].status = "success";
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -377,6 +414,7 @@ export function TableSetupStep({
         allSucceeded = false;
       }
       setCreationSteps([...statusArr]);
+      if (!allSucceeded) break;
     }
 
     if (allSucceeded) {
@@ -564,20 +602,22 @@ export function TableSetupStep({
     setPermissionError("");
 
     const statusArr: TableCreationStatus[] = [
-      { step: "Fetch Eventstream endpoint details", status: "pending" },
+      { step: "Validate raw tables and Eventstreams", status: "pending" },
       { step: `Tag ${telem.tableName} with this IoT Hub source`, status: "pending" },
       { step: `Tag ${props.tableName} with this IoT Hub source`, status: "pending" },
     ];
     setReuseSteps([...statusArr]);
 
     try {
-      // 1. Endpoint details for both existing eventstreams (for the routing step).
+      // Validate both resources before changing docstrings or completing the step.
       statusArr[0].status = "running";
       setReuseSteps([...statusArr]);
+      const kustoToken = (await acquireTokenWithConsent(workloadClient, KUSTO_SCOPE)).token;
+      await Promise.all([telem, props].map((table) => validateTable(kustoToken, table.tableName)));
       const fabricToken = await acquireFabricToken();
       const [telemEp, propsEp] = await Promise.all([
-        fetchEndpointDetails(fabricToken, telem.eventstreamId),
-        fetchEndpointDetails(fabricToken, props.eventstreamId),
+        fetchEndpointDetails(fabricToken, telem),
+        fetchEndpointDetails(fabricToken, props),
       ]);
       if (
         !telemEp.namespace ||
@@ -595,7 +635,6 @@ export function TableSetupStep({
       setReuseSteps([...statusArr]);
 
       // 2. Append this IoT Hub as a source on both tables' docstrings.
-      const kustoToken = (await acquireTokenWithConsent(workloadClient, KUSTO_SCOPE)).token;
       const targets = [telem, props];
       for (let idx = 0; idx < targets.length; idx++) {
         const tbl = targets[idx];
@@ -644,6 +683,12 @@ export function TableSetupStep({
       setTablesCreated(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
+      const runningStep = statusArr.find((step) => step.status === "running");
+      if (runningStep) {
+        runningStep.status = "error";
+        runningStep.error = msg;
+        setReuseSteps([...statusArr]);
+      }
       setPermissionError(msg);
     } finally {
       setApplying(false);
@@ -654,6 +699,7 @@ export function TableSetupStep({
     propertiesOptions,
     selectedTelemetry,
     selectedProperties,
+    databaseId,
     databaseName,
     iotHubFqdn,
     workloadClient,
@@ -714,6 +760,9 @@ export function TableSetupStep({
         <br />
         You may choose to create new raw data tables for this IoT Hub or combine data from multiple IoT Hubs
         by reusing existing tables.
+        Existing tables must include <code>user_headers: dynamic</code>, and their Eventstream SQL must
+        project <code>[User]</code> metadata into <code>user_headers</code>. Incompatible resources must
+        be updated or recreated before reuse; they are not upgraded automatically.
       </Text>
 
       {/* Mode selector */}
@@ -928,7 +977,7 @@ export function TableSetupStep({
               <div className="iot-solution-validation-row">
                 <Text className="iot-solution-validation-label">Schema</Text>
                 <Text className="iot-solution-validation-value">
-                  data: string, headers: dynamic
+                  {RAW_TABLE_SCHEMA}
                 </Text>
               </div>
             )}

@@ -7,7 +7,7 @@
  * schema (version 69) and can be posted to the Fabric REST API.
  */
 
-import { RAW_EVENT_NORMALIZATION_KQL } from "./RawEventKql";
+import { RAW_EVENT_PROJECTION_KQL } from "./RawEventKql";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,7 +19,7 @@ export interface DashboardField {
   included: boolean;
   /**
    * Component name this field belongs to (undefined/empty for root-interface fields).
-   * Component telemetry arrives as separate messages tagged with IoTSubject=<component>, and
+   * Component telemetry is identified by cloudEvents_iothubdtsubject in user_headers, and
    * component reported properties are nested under the component key. `key` is the flattened
    * display/column name (`<component>_<leaf>`); `component` + `leaf` recover the raw wire shape.
    */
@@ -83,12 +83,12 @@ const CHART_COLORS = [
 // Query builders
 // ---------------------------------------------------------------------------
 
-// Component telemetry arrives as separate messages tagged with IoTSubject=<component>; root
-// telemetry has an empty IoTSubject. Guarding on the subject ensures a field reads only its own
+// Component telemetry has a component name; root telemetry has an empty component.
+// Guarding on the component ensures a field reads only its own
 // source and prevents a root field from matching a component message (or vice versa) when they
-// share a leaf name. Returns "" for root fields, which matches the empty IoTSubject.
-function subjectFilter(component: string): string {
-  return `| where tostring(headers.IoTSubject) == '${component}'`;
+// share a leaf name.
+function componentFilter(component: string): string {
+  return `| where component == '${component}'`;
 }
 
 function buildTimeSeriesTelemetryQuery(table: string, field: DashboardField): string {
@@ -97,13 +97,9 @@ function buildTimeSeriesTelemetryQuery(table: string, field: DashboardField): st
   return [
     table,
     "| where ingestion_time() >= ago(30d)",
-    RAW_EVENT_NORMALIZATION_KQL,
-    "| extend deviceId = tostring(headers.IoTConnectionDeviceId)",
-    "| where isnotempty(deviceId)",
+    RAW_EVENT_PROJECTION_KQL,
     "| where deviceId == _deviceId",
-    subjectFilter(component),
-    "| extend enqueuedTime = todatetime(headers.IoTEnqueueTime)",
-    "| where isnotempty(enqueuedTime)",
+    componentFilter(component),
     "| where enqueuedTime between (['_startTime'] .. ['_endTime'])",
     "| extend telemetry = data",
     `| extend Value = todecimal(telemetry['${leaf}'])`,
@@ -119,13 +115,9 @@ function buildNonTimeSeriesTelemetryQuery(table: string, field: DashboardField):
   return [
     table,
     "| where ingestion_time() >= ago(30d)",
-    RAW_EVENT_NORMALIZATION_KQL,
-    "| extend deviceId = tostring(headers.IoTConnectionDeviceId)",
-    "| where isnotempty(deviceId)",
+    RAW_EVENT_PROJECTION_KQL,
     "| where deviceId == _deviceId",
-    subjectFilter(component),
-    "| extend enqueuedTime = todatetime(headers.IoTEnqueueTime)",
-    "| where isnotempty(enqueuedTime)",
+    componentFilter(component),
     "| where enqueuedTime between (['_startTime'] .. ['_endTime'])",
     "| extend telemetry = data",
     `| extend Value = telemetry['${leaf}']`,
@@ -145,12 +137,8 @@ function buildPropertyQuery(table: string, field: DashboardField): string {
   return [
     table,
     "| where ingestion_time() >= ago(30d)",
-    RAW_EVENT_NORMALIZATION_KQL,
-    "| extend deviceId = tostring(headers.IoTConnectionDeviceId)",
-    "| where isnotempty(deviceId)",
+    RAW_EVENT_PROJECTION_KQL,
     "| where deviceId == _deviceId",
-    "| extend enqueuedTime = todatetime(headers.IoTEnqueueTime)",
-    "| where isnotempty(enqueuedTime)",
     "| extend rp = data.properties.reported",
     `| extend Value = ${valueExpr}`,
     "| where isnotempty(Value)",
@@ -164,9 +152,7 @@ function buildDeviceListQuery(table: string): string {
   return [
     table,
     "| where ingestion_time() >= ago(30d)",
-    RAW_EVENT_NORMALIZATION_KQL,
-    "| extend deviceId = tostring(headers.IoTConnectionDeviceId)",
-    "| where isnotempty(deviceId)",
+    RAW_EVENT_PROJECTION_KQL,
     "| distinct deviceId",
   ].join("\n");
 }

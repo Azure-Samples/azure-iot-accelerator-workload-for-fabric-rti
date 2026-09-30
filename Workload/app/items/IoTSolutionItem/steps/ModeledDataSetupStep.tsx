@@ -24,7 +24,7 @@ import { Item } from "../../../clients/FabricPlatformTypes";
 import { getEventhouseItem } from "../eventhouseClient";
 import { acquireTokenWithConsent } from "../../../controller/AuthenticationController";
 import { DtdlCapability } from "../DtdlModelParser";
-import { RAW_EVENT_NORMALIZATION_KQL } from "../RawEventKql";
+import { RAW_EVENT_PROJECTION_KQL } from "../RawEventKql";
 import "../IoTSolutionItem.scss";
 
 const FABRIC_ITEM_READ_SCOPE = "https://api.fabric.microsoft.com/Item.Read.All";
@@ -531,7 +531,7 @@ export function ModeledDataSetupStep({
 
     try {
       const accessToken = await acquireTokenWithConsent(workloadClient, KUSTO_SCOPE);
-      const kql = `${tableName}\n${RAW_EVENT_NORMALIZATION_KQL}\n| where ${clause} | take 10`;
+      const kql = `${tableName}\n${RAW_EVENT_PROJECTION_KQL}\n| where ${clause} | take 10`;
       const response = await fetch(`${queryServiceUri}/v1/rest/query`, {
         method: "POST",
         headers: {
@@ -584,7 +584,7 @@ export function ModeledDataSetupStep({
     const commands: { label: string; csl: string }[] = [];
 
     // Whether the model has any component capabilities (column names like `<component>_<leaf>`).
-    // Component data arrives differently: telemetry as separate messages tagged with IoTSubject,
+    // Component data arrives differently: telemetry identified by cloudEvents_iothubdtsubject,
     // and reported properties nested under the component key with a `__t: "c"` marker.
     const hasComponents = [...telemetries, ...properties].some((c) => c.component);
 
@@ -597,13 +597,13 @@ export function ModeledDataSetupStep({
     const propsScopeFilter = propertiesScopeClause.trim()
       ? ` | where ${propertiesScopeClause.trim()}`
       : "";
-    const propsBase = `${rawPropertiesTable}\n${RAW_EVENT_NORMALIZATION_KQL}${propsScopeFilter} | extend rp = data.properties.reported | extend keys = bag_keys(rp) | mv-expand key = keys to typeof(string) | where key !startswith "$" and key != "iothub-enqueuedtime" and key != "iothub-connection-device-id"`;
+    const propsBase = `${rawPropertiesTable}\n${RAW_EVENT_PROJECTION_KQL}${propsScopeFilter} | extend rp = data.properties.reported | extend keys = bag_keys(rp) | mv-expand key = keys to typeof(string) | where key !startswith "$" and key != "iothub-enqueuedtime" and key != "iothub-connection-device-id"`;
     // When the model has components, flatten each component object (marked with __t="c") into
     // `<component>_<subProperty>` rows so they match the modeled component columns. Non-component
     // object-valued properties (e.g. Object-schema properties, which have no __t) are kept whole.
     const propsQuery = hasComponents
-      ? `${propsBase} | extend val = rp[key] | extend isComponent = (gettype(val) == "dictionary" and tostring(val["__t"]) == "c") | mv-expand subkey = iff(isComponent, bag_keys(val), pack_array(key)) to typeof(string) | where subkey != "__t" | project deviceId = tostring(headers.IoTConnectionDeviceId), propertyName = iff(isComponent, strcat(key, "_", subkey), key), propertyValue = iff(isComponent, val[subkey], val), enqueuedTime = todatetime(headers.IoTEnqueueTime)`
-      : `${propsBase} | project deviceId = tostring(headers.IoTConnectionDeviceId), propertyName = key, propertyValue = rp[key], enqueuedTime = todatetime(headers.IoTEnqueueTime)`;
+      ? `${propsBase} | extend val = rp[key] | extend isComponent = (gettype(val) == "dictionary" and tostring(val["__t"]) == "c") | mv-expand subkey = iff(isComponent, bag_keys(val), pack_array(key)) to typeof(string) | where subkey != "__t" | project deviceId, propertyName = iff(isComponent, strcat(key, "_", subkey), key), propertyValue = iff(isComponent, val[subkey], val), enqueuedTime`
+      : `${propsBase} | project deviceId, propertyName = key, propertyValue = rp[key], enqueuedTime`;
 
     commands.push({
       label: `Set update policy on ${propsNormalizedName}`,
@@ -639,8 +639,8 @@ export function ModeledDataSetupStep({
 
     // Build the inline modeled data query.
     // Group telemetries by component (undefined = root interface). Component telemetry arrives as
-    // separate messages tagged with IoTSubject=<component>; we pick each source's payload via a
-    // subject-guarded bag before extracting typed columns. This prevents cross-component key
+    // separate messages identified by cloudEvents_iothubdtsubject; we pick each source's payload via a
+    // component-guarded bag before extracting typed columns. This prevents cross-component key
     // collisions (e.g. two components both reporting a "current" field).
     const telGroups = new Map<string, DtdlCapability[]>();
     for (const t of telemetries) {
@@ -656,19 +656,13 @@ export function ModeledDataSetupStep({
     const componentTelProjExprs: string[] = [];
     for (const [comp, caps] of telGroups.entries()) {
       const bagVar = telBagVar(comp);
-      const cond = comp ? `subject == '${comp}'` : `subject == ''`;
+      const cond = `component == '${comp}'`;
       sourceBagExprs.push(`${bagVar} = iff(${cond}, telemetry, dynamic(null))`);
       for (const t of caps) {
         const castFn = kustoTypeToCast(t.kustoType);
         componentTelProjExprs.push(`${t.name} = ${castFn}(${bagVar}['${t.leafName}'])`);
       }
     }
-    // Legacy (no components): extract each column directly from the telemetry payload.
-    const telemetryProjections = telemetries.map((t) => {
-      const castFn = kustoTypeToCast(t.kustoType);
-      return `${t.name} = ${castFn}(telemetry['${t.leafName}'])`;
-    }).join(", ");
-
     const propertyProjections = properties.map((p) => {
       const castFn = kustoTypeToCast(p.kustoType);
       return `${p.name} = ${castFn}(bag["${p.name}"])`;
@@ -691,15 +685,9 @@ export function ModeledDataSetupStep({
         `${properties.length > 0
           ? `let lkv_bag = ${propsLkvViewName} | summarize bag = make_bag(bag_pack(propertyName, propertyValue)) by deviceId; `
           : ""}` +
-        `${rawTelemetryTable}\n${RAW_EVENT_NORMALIZATION_KQL}${telScopeFilter} | extend deviceId = tostring(headers.IoTConnectionDeviceId), enqueuedTime = todatetime(headers.IoTEnqueueTime), telemetry = data`;
-
-      if (hasComponents) {
-        modelQuery += `, subject = tostring(headers.IoTSubject)`;
-        modelQuery += ` | extend ${sourceBagExprs.join(", ")}`;
-        modelQuery += ` | extend ${componentTelProjExprs.join(", ")}`;
-      } else {
-        modelQuery += ` | extend ${telemetryProjections}`;
-      }
+        `${rawTelemetryTable}\n${RAW_EVENT_PROJECTION_KQL}${telScopeFilter} | extend telemetry = data`;
+      modelQuery += ` | extend ${sourceBagExprs.join(", ")}`;
+      modelQuery += ` | extend ${componentTelProjExprs.join(", ")}`;
 
       if (properties.length > 0) {
         modelQuery +=
@@ -713,8 +701,7 @@ export function ModeledDataSetupStep({
       modeledSourceTable = rawTelemetryTable;
       modelQuery =
         `let lkv_bag = ${propsLkvViewName} | summarize bag = make_bag(bag_pack(propertyName, propertyValue)) by deviceId; ` +
-        `${rawTelemetryTable}\n${RAW_EVENT_NORMALIZATION_KQL}${telScopeFilter}` +
-        ` | extend deviceId = tostring(headers.IoTConnectionDeviceId), enqueuedTime = todatetime(headers.IoTEnqueueTime)` +
+        `${rawTelemetryTable}\n${RAW_EVENT_PROJECTION_KQL}${telScopeFilter}` +
         ` | lookup kind=leftouter lkv_bag on deviceId` +
         ` | extend ${propertyProjections.join(", ")}` +
         ` | project ${modeledColumnNames.join(", ")}`;
@@ -1038,10 +1025,11 @@ export function ModeledDataSetupStep({
                 </Label>
                 <Text size={200} style={{ color: "var(--colorNeutralForeground3)", marginBottom: "4px" }} block>
                   Filter raw telemetry rows to only include devices matching this model.
-                  Reference <code>headers</code> and <code>data</code> (parsed as JSON) fields.
+                  Reference <code>deviceId</code>, <code>enqueuedTime</code>, <code>component</code>,
+                  or fields in <code>user_headers</code> and <code>data</code> (parsed as JSON).
                 </Text>
                 <Text size={200} style={{ color: "var(--colorNeutralForeground4)", fontStyle: "italic", marginBottom: "8px" }} block>
-                  Examples: <code>headers.IoTConnectionDeviceId startswith "thermostat"</code> · <code>data.deviceType == "hvac"</code>
+                  Examples: <code>deviceId startswith "sensor-"</code> · <code>component == "thermostat"</code>
                 </Text>
                 <Input
                   id="tel-scope"
@@ -1054,7 +1042,7 @@ export function ModeledDataSetupStep({
                     updateContext("telemetryScopeClause", d.value);
                     resetCreation();
                   }}
-                  placeholder={'e.g., headers.IoTConnectionDeviceId startswith "thermostat"'}
+                  placeholder={'e.g., deviceId startswith "sensor-"'}
                   disabled={creating}
                   style={{ fontFamily: "monospace", fontSize: "12px" }}
                 />
@@ -1137,10 +1125,11 @@ export function ModeledDataSetupStep({
                 </Label>
                 <Text size={200} style={{ color: "var(--colorNeutralForeground3)", marginBottom: "4px" }} block>
                   Filter raw property rows to only include devices matching this model.
-                  Reference <code>headers</code> and <code>data</code> (parsed as JSON) fields.
+                  Reference <code>deviceId</code>, <code>enqueuedTime</code>, <code>component</code>,
+                  or fields in <code>user_headers</code> and <code>data</code> (parsed as JSON).
                 </Text>
                 <Text size={200} style={{ color: "var(--colorNeutralForeground4)", fontStyle: "italic", marginBottom: "8px" }} block>
-                  Examples: <code>headers.IoTConnectionDeviceId startswith "thermostat"</code> · <code>data.properties.reported.deviceModel == "ThermoPro X200"</code>
+                  Examples: <code>deviceId startswith "sensor-"</code> · <code>data.properties.reported.deviceModel == "ThermoPro X200"</code>
                 </Text>
                 <Input
                   id="prop-scope"
@@ -1153,7 +1142,7 @@ export function ModeledDataSetupStep({
                     updateContext("propertiesScopeClause", d.value);
                     resetCreation();
                   }}
-                  placeholder={'e.g., headers.IoTConnectionDeviceId startswith "thermostat"'}
+                  placeholder={'e.g., deviceId startswith "sensor-"'}
                   disabled={creating}
                   style={{ fontFamily: "monospace", fontSize: "12px" }}
                 />

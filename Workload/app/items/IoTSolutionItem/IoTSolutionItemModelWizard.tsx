@@ -134,7 +134,7 @@ export function IoTSolutionItemModelWizard({
         cancel: "Cancel",
       }}
       onFirstStepBack={onBack}
-      persistKey={`iot-wizard-v4-model-${itemId}`}
+      persistKey={`iot-wizard-v5-model-${itemId}`}
     />
   );
 }

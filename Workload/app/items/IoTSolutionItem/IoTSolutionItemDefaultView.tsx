@@ -155,7 +155,7 @@ export function IoTSolutionItemDefaultView({
         cancel: "Cancel",
       }}
       onFirstStepBack={onBack}
-      persistKey={`iot-wizard-v4-ingestion-${itemId}`}
+      persistKey={`iot-wizard-v5-ingestion-${itemId}`}
     />
   );
 }

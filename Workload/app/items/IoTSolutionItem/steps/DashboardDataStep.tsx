@@ -22,7 +22,7 @@ import { FabricPlatformAPIClient } from "../../../clients/FabricPlatformAPIClien
 import { Item } from "../../../clients/FabricPlatformTypes";
 import { getEventhouseItem } from "../eventhouseClient";
 import { acquireTokenWithConsent } from "../../../controller/AuthenticationController";
-import { RAW_EVENT_NORMALIZATION_KQL } from "../RawEventKql";
+import { RAW_EVENT_PROJECTION_KQL } from "../RawEventKql";
 import "../IoTSolutionItem.scss";
 
 const FABRIC_ITEM_READ_SCOPE = "https://api.fabric.microsoft.com/Item.Read.All";
@@ -361,23 +361,19 @@ export function DashboardDataStep({
 
     try {
       // Query 1: Get distinct telemetry field names and whether they are numeric.
-      // Component telemetry arrives as separate messages tagged with IoTSubject=<component>;
+      // Component telemetry is identified by cloudEvents_iothubdtsubject in user_headers;
       // prefix those fields as `<component>_<field>` so they match the modeled-data columns.
-      // Root telemetry has an empty IoTSubject and stays unprefixed.
+      // Root telemetry has an empty component and stays unprefixed.
       const telemetryQuery = `${telemetryTableName}
 | where ingestion_time() >= ago(30d)
-${RAW_EVENT_NORMALIZATION_KQL}
-| extend enqueuedTime = todatetime(headers.IoTEnqueueTime)
-| where isnotempty(enqueuedTime)
-| extend subject = tostring(headers.IoTSubject)
+${RAW_EVENT_PROJECTION_KQL}
 | extend j = data
 | extend keys = bag_keys(j)
 | mv-expand k = keys to typeof(string)
-| where k !in ("EventProcessedUtcTime", "PartitionId", "EventEnqueuedUtcTime", "EventHub")
 | extend v = j[k]
 | extend valueType = gettype(v)
-| extend Key = iff(subject == "", k, strcat(subject, "_", k))
-| summarize arg_max(enqueuedTime, valueType) by Key, Component = subject, Leaf = k
+| extend Key = iff(component == "", k, strcat(component, "_", k))
+| summarize arg_max(enqueuedTime, valueType) by Key, Component = component, Leaf = k
 | extend IsNumericType = valueType in ("int","long","real","decimal","double")
 | project Key, IsNumericType, Component, Leaf
 | order by Key asc`;
@@ -387,9 +383,7 @@ ${RAW_EVENT_NORMALIZATION_KQL}
       // modeled columns. Non-component object properties (no __t) are kept whole.
       const propertiesQuery = `${propertiesTableName}
 | where ingestion_time() >= ago(30d)
-${RAW_EVENT_NORMALIZATION_KQL}
-| extend enqueuedTime = todatetime(headers.IoTEnqueueTime)
-| where isnotempty(enqueuedTime)
+${RAW_EVENT_PROJECTION_KQL}
 | extend rp = data.properties.reported
 | extend keys = bag_keys(rp)
 | mv-expand key = keys to typeof(string)

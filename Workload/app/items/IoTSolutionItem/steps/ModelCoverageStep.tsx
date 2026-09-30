@@ -13,7 +13,7 @@ import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { WizardStepProps } from "../../../components/Wizard";
 import { acquireTokenWithConsent } from "../../../controller/AuthenticationController";
 import { DtdlCapability } from "../DtdlModelParser";
-import { RAW_EVENT_NORMALIZATION_KQL } from "../RawEventKql";
+import { RAW_EVENT_PROJECTION_KQL } from "../RawEventKql";
 import "../IoTSolutionItem.scss";
 
 const KUSTO_SCOPE = "https://kusto.kusto.windows.net/.default";
@@ -86,7 +86,10 @@ export function ModelCoverageStep({
           body: JSON.stringify({ db: databaseName, csl: query }),
         });
         if (!response.ok) {
-          throw new Error(`Unable to inspect recent raw data (${response.status}).`);
+          throw new Error(
+            `Unable to inspect recent raw data (${response.status}). ` +
+            "Verify access to the raw tables, the user_headers column, and any scoping clauses."
+          );
         }
         const result = await response.json();
         const rows = result?.Tables?.[0]?.Rows || [];
@@ -117,17 +120,15 @@ export function ModelCoverageStep({
 
       const telemetryQuery = `${telemetryTable}
 | top ${COVERAGE_EVENT_LIMIT} by ingestion_time() desc
-${RAW_EVENT_NORMALIZATION_KQL}${telemetryScopeFilter}
-| extend subject = tostring(headers.IoTSubject)
+${RAW_EVENT_PROJECTION_KQL}${telemetryScopeFilter}
 | mv-expand field = bag_keys(data) to typeof(string)
-| where field !in ("EventProcessedUtcTime", "PartitionId", "EventEnqueuedUtcTime", "EventHub")
-| extend modeledField = iff(subject == "", field, strcat(subject, "_", field))
+| extend modeledField = iff(component == "", field, strcat(component, "_", field))
 | distinct modeledField
 | order by modeledField asc`;
 
       const propertiesQuery = `${propertiesTable}
 | top ${COVERAGE_EVENT_LIMIT} by ingestion_time() desc
-${RAW_EVENT_NORMALIZATION_KQL}${propertiesScopeFilter}
+${RAW_EVENT_PROJECTION_KQL}${propertiesScopeFilter}
 | extend reported = data.properties.reported
 | mv-expand property = bag_keys(reported) to typeof(string)
 | where property !startswith "$" and property != "iothub-enqueuedtime" and property != "iothub-connection-device-id"
@@ -148,8 +149,8 @@ ${RAW_EVENT_NORMALIZATION_KQL}${propertiesScopeFilter}
         ...(propertyCount === 0 ? ["properties"] : []),
       ];
       const [telemetryFields, propertyFields] = await Promise.all([
-        telemetryCount > 0 ? executeFieldQuery(telemetryQuery) : Promise.resolve([]),
-        propertyCount > 0 ? executeFieldQuery(propertiesQuery) : Promise.resolve([]),
+        executeFieldQuery(telemetryQuery),
+        executeFieldQuery(propertiesQuery),
       ]);
 
       setObservedTelemetryFields(telemetryFields);
