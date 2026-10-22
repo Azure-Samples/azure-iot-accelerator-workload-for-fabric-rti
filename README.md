@@ -60,6 +60,13 @@ experience, and extend it for their requirements.
 
 Follow the steps below to set up and deploy the workload:
 
+> [!TIP]
+> **Deploy with GitHub Copilot**
+>
+> Instead of running the steps manually, open this repository in VS Code with Copilot agent mode or in GitHub Copilot CLI and ask:
+> "Help me deploy this workload to Azure and publish it to my Microsoft Fabric tenant".
+> The deployment skill will guide you through the process.
+
 > Prerequisites: the setup commands below require PowerShell 7+, Node.js, and npm.
 
 1. Clone this repository.
