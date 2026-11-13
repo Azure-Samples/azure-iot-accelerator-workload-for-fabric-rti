@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 
 import React from "react";
+import { ArrowRight20Regular } from "@fluentui/react-icons";
 import "../IoTSolutionItem.scss";
 
 /**
@@ -55,21 +56,21 @@ export function ActivatorOverviewStep() {
               Typed device events and current state
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Eventstream</span>
             <span className="iot-solution-flow-node-detail">
               Continuously delivers new events
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Activator conditions</span>
             <span className="iot-solution-flow-node-detail">
               Thresholds, state changes, and event absence
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Actions</span>
             <span className="iot-solution-flow-node-detail">

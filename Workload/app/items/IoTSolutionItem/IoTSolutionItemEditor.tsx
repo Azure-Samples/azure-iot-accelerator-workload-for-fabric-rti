@@ -1,13 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { NotificationType } from "@ms-fabric/workload-client";
-import { Spinner } from "@fluentui/react-components";
+import { Button, MessageBar, MessageBarBody, Spinner, Text } from "@fluentui/react-components";
 import { PageProps, ContextProps } from "../../App";
 import {
   ItemWithDefinition,
+  ItemLoadError,
   getWorkloadItem,
   callGetItem,
   saveWorkloadItem,
@@ -19,7 +20,7 @@ import {
   ItemEditor,
   useViewNavigation,
 } from "../../components/ItemEditor";
-import { IoTSolutionItemDefinition } from "./IoTSolutionItemDefinition";
+import { IoTSolutionItemDefinition, definitionWithoutModel } from "./IoTSolutionItemDefinition";
 import { IoTSolutionItemHomePage } from "./IoTSolutionItemHomePage";
 import { IoTSolutionItemDefaultView } from "./IoTSolutionItemDefaultView";
 import { IoTSolutionItemDashboardWizard } from "./IoTSolutionItemDashboardWizard";
@@ -38,17 +39,21 @@ export const EDITOR_VIEW_TYPES = {
   DATA_AGENT_WIZARD: "data-agent-wizard",
 } as const;
 
-const enum SaveStatus {
-  NotSaved = "NotSaved",
-  Saving = "Saving",
-  Saved = "Saved",
-}
+const SaveStatus = {
+  NotSaved: "NotSaved",
+  Saving: "Saving",
+  Saved: "Saved",
+} as const;
+type SaveStatus = typeof SaveStatus[keyof typeof SaveStatus];
 
 export function IoTSolutionItemEditor(props: PageProps) {
   const { workloadClient } = props;
   const pageContext = useParams<ContextProps>();
 
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error>();
+  const [loadRetry, setLoadRetry] = useState(0);
+  const errorHeading = useRef<HTMLHeadingElement>(null);
   const [isSavingWizard, setIsSavingWizard] = useState(false);
   const [item, setItem] = useState<ItemWithDefinition<IoTSolutionItemDefinition>>();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(SaveStatus.NotSaved);
@@ -56,39 +61,38 @@ export function IoTSolutionItemEditor(props: PageProps) {
   const [viewSetter, setViewSetter] = useState<((view: string) => void) | null>(null);
 
   const { pathname } = useLocation();
-
-  async function loadDataFromUrl(ctx: ContextProps, path: string): Promise<void> {
-    if (ctx.itemObjectId && item && item.id === ctx.itemObjectId) {
-      return;
-    }
-
+  useEffect(() => {
+    let current = true;
     setIsLoading(true);
-    if (ctx.itemObjectId) {
+    setLoadError(undefined);
+    setItem(undefined);
+    setViewSetter(null);
+    setCurrentDefinition({});
+    const load = async () => {
       try {
-        let loadedItem = await getWorkloadItem<IoTSolutionItemDefinition>(
+        if (!pageContext.itemObjectId) throw new Error("The item identifier was not supplied.");
+        const loadedItem = await getWorkloadItem<IoTSolutionItemDefinition>(
           workloadClient,
-          ctx.itemObjectId
+          pageContext.itemObjectId
         );
-
-        if (!loadedItem.definition) {
-          setSaveStatus(SaveStatus.NotSaved);
-          loadedItem = { ...loadedItem, definition: {} };
-        } else {
-          setSaveStatus(SaveStatus.Saved);
+        if (loadedItem.definition !== undefined &&
+            (!loadedItem.definition || typeof loadedItem.definition !== "object" || Array.isArray(loadedItem.definition))) {
+          throw new ItemLoadError("definition", new Error("The application-definition part is not a configuration object."));
         }
-
+        if (!current) return;
+        setSaveStatus(loadedItem.definition === undefined ? SaveStatus.NotSaved : SaveStatus.Saved);
         setItem(loadedItem);
         setCurrentDefinition(loadedItem.definition || {});
-      } catch {
-        setItem(undefined);
+      } catch (failure: unknown) {
+        if (current) setLoadError(failure instanceof Error ? failure : new Error("The item could not be loaded."));
+      } finally {
+        if (current) setIsLoading(false);
       }
-    }
-    setIsLoading(false);
-  }
-
-  useEffect(() => {
-    loadDataFromUrl(pageContext, pathname);
-  }, [pageContext, pathname]);
+    };
+    void load();
+    return () => { current = false; };
+  }, [pageContext.itemObjectId, pathname, workloadClient, loadRetry]);
+  useEffect(() => { if (loadError) errorHeading.current?.focus(); }, [loadError]);
 
   const handleOpenSettings = async () => {
     if (item) {
@@ -110,7 +114,7 @@ export function IoTSolutionItemEditor(props: PageProps) {
     try {
       successResult = await saveWorkloadItem<IoTSolutionItemDefinition>(
         workloadClient,
-        { ...item, definition: currentDefinition }
+        { ...item, definition: definitionWithoutModel(currentDefinition) }
       );
     } catch (error: any) {
       errorMessage = error?.message;
@@ -118,7 +122,7 @@ export function IoTSolutionItemEditor(props: PageProps) {
 
     if (successResult) {
       if (item) {
-        item.definition = currentDefinition;
+        item.definition = definitionWithoutModel(currentDefinition);
       }
       setSaveStatus(SaveStatus.Saved);
       callNotificationOpen(
@@ -149,7 +153,6 @@ export function IoTSolutionItemEditor(props: PageProps) {
 
     // Determine which wizard completed based on context keys
     const isDashboardWizard = !!wizardContext.dashDashboardCreated;
-    const isModelWizard = !!wizardContext.modelUploaded;
     const isActivatorWizard = !!wizardContext.activatorCreated;
     const isDataAgentWizard = !!wizardContext.agentCreated;
 
@@ -210,17 +213,6 @@ export function IoTSolutionItemEditor(props: PageProps) {
           dashboardName: wizardContext.dashDashboardName || "",
         },
       }),
-      // Model wizard fields
-      ...(wizardContext.modelUploaded && {
-        deviceModel: {
-          fileName: wizardContext.modelFileName || "",
-          modelName: wizardContext.modelName || "",
-          modelJson: wizardContext.modelJson || null,
-          propsNormalizedName: wizardContext.propsNormalizedName || "",
-          propsLkvViewName: wizardContext.propsLkvViewName || "",
-          modeledDataName: wizardContext.modeledDataName || "",
-        },
-      }),
       // Activator wizard fields
       ...(wizardContext.activatorCreated && {
         activator: {
@@ -242,24 +234,21 @@ export function IoTSolutionItemEditor(props: PageProps) {
         },
       }),
     };
-    setCurrentDefinition(updatedDef);
+    const persistentDefinition = definitionWithoutModel(updatedDef);
+    setCurrentDefinition(persistentDefinition);
     setSaveStatus(SaveStatus.NotSaved);
 
     // Notification labels
     const notifTitle = isDashboardWizard
       ? "Dashboard Created"
-      : isModelWizard
-        ? "Model Uploaded"
-        : isActivatorWizard
+      : isActivatorWizard
           ? "Activator Created"
           : isDataAgentWizard
             ? "Data Agent Created"
             : "Setup Complete";
     const notifMsg = isDashboardWizard
       ? "Real-Time Dashboard created and saved."
-      : isModelWizard
-        ? "Device model uploaded and saved."
-        : isActivatorWizard
+      : isActivatorWizard
           ? "Activator and Eventstream created and saved."
           : isDataAgentWizard
             ? "Data Agent created and configured with AI instructions."
@@ -269,10 +258,10 @@ export function IoTSolutionItemEditor(props: PageProps) {
     try {
       await saveWorkloadItem<IoTSolutionItemDefinition>(workloadClient, {
         ...item,
-        definition: updatedDef,
+        definition: persistentDefinition,
       });
       if (item) {
-        item.definition = updatedDef;
+        item.definition = persistentDefinition;
       }
       setSaveStatus(SaveStatus.Saved);
       callNotificationOpen(workloadClient, notifTitle, notifMsg, undefined, undefined);
@@ -354,7 +343,6 @@ export function IoTSolutionItemEditor(props: PageProps) {
       <IoTSolutionItemModelWizard
         workloadClient={workloadClient}
         item={item}
-        onWizardComplete={(ctx) => handleWizardComplete(ctx, goHome)}
         onBack={goHome}
       />
     );
@@ -420,6 +408,22 @@ export function IoTSolutionItemEditor(props: PageProps) {
       viewSetter(EDITOR_VIEW_TYPES.HOME);
     }
   }, [isLoading, item, viewSetter]);
+
+  if (loadError) {
+    const retriable = !(loadError instanceof ItemLoadError) || loadError.isRetriable !== false;
+    return <div className="iot-solution-step">
+      <h2 ref={errorHeading} tabIndex={-1} className="iot-solution-step-title">This item could not be loaded</h2>
+      <MessageBar intent="error" role="alert"><MessageBarBody>
+        This item's workspace context could not be loaded. Data source selection is unavailable.
+      </MessageBarBody></MessageBar>
+      <details className="iot-solution-model-details"><summary>Load details</summary>
+        <Text block>{loadError.message}</Text>
+        {loadError instanceof ItemLoadError && loadError.requestId && <Text block>Request ID: {loadError.requestId}</Text>}
+      </details>
+      {retriable ? <Button onClick={() => setLoadRetry(value => value + 1)}>Retry loading item</Button>
+        : <Text>The host marked this request as not retryable.</Text>}
+    </div>;
+  }
 
   return (
     <>

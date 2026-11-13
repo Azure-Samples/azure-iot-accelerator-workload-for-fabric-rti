@@ -27,17 +27,46 @@ export interface ItemWithDefinition<T> extends ItemReference {
 }
 
 /**
-* Enum representing the paths for item payloads.
-* This enum is used to define the paths for item metadata and platform files.
+* Paths for item metadata and platform files.
 * If you have more files that need to be stored in the item payload, you can add them here.
 * The paths are relative to the item payload root. 
 * The platform file is used to store platform-specific information about the item and needs to be present in the item payload.
 * The item metadata file is used to store metadata about the item and needs to be present in the item payload.
 * The paths are used to read and write files in the item payload.
 */
-export enum ItemDefinitionPath {
-    Default = "payload.json",
-    Platform = ".platform",
+export const ItemDefinitionPath = {
+    Default: "payload.json",
+    Platform: ".platform",
+} as const;
+export type ItemDefinitionPath = typeof ItemDefinitionPath[keyof typeof ItemDefinitionPath];
+
+export class ItemLoadError extends Error {
+    readonly stage: "metadata" | "definition";
+    readonly isRetriable?: boolean;
+    readonly requestId?: string;
+    readonly cause: unknown;
+
+    constructor(stage: "metadata" | "definition", cause: unknown) {
+        const details = typeof cause === "object" && cause !== null ? cause : {};
+        const code = "errorCode" in details && typeof details.errorCode === "string" ? details.errorCode
+            : "code" in details && typeof details.code === "string" ? details.code : undefined;
+        const message = "message" in details && typeof details.message === "string" && details.message
+            ? details.message : "The host did not provide further details.";
+        super(`Unable to load item ${stage}. ${code ? `${code}: ` : ""}${message}`);
+        this.name = "ItemLoadError";
+        this.stage = stage;
+        this.cause = cause;
+        this.isRetriable = "isRetriable" in details && typeof details.isRetriable === "boolean" ? details.isRetriable : undefined;
+        this.requestId = "requestId" in details && typeof details.requestId === "string" ? details.requestId : undefined;
+    }
+}
+
+function validateItemMetadata(result: GetItemResult, expectedId?: string): void {
+    const item = result?.item;
+    if (!item || [item.id, item.workspaceId, item.type].some(value => typeof value !== "string" || !value.trim()) ||
+        typeof item.displayName !== "string" || (expectedId && item.id.toLowerCase() !== expectedId.toLowerCase())) {
+        throw new Error("The host returned missing or malformed required item/workspace metadata.");
+    }
 }
 
 /**
@@ -56,12 +85,13 @@ export async function callGetItem(
     itemId: string): Promise<GetItemResult> {
     try {
         const item: GetItemResult = await workloadClient.itemCrud.getItem({ itemId });
+        validateItemMetadata(item, itemId);
         console.log(`Successfully fetched item ${itemId}: ${item}`)
 
         return item;
     } catch (exception) {
         console.error("Failed locating item with ObjectID %s", itemId, exception);
-        return undefined;
+        throw new ItemLoadError("metadata", exception);
     }
 }
 
@@ -99,7 +129,7 @@ export async function saveItemDefinition<T>(
  * 
  * It calls the 'itemCrudPublic.getItemDefinition' function from the WorkloadClientAPI.
  * 
- * It returns the item definition if available, otherwise undefined.
+ * Successful responses without an application part return undefined; failed required reads throw.
  * 
  * @param {WorkloadClientAPI} workloadClient - An instance of the WorkloadClientAPI.    
  * @param {string} itemId - The ObjectId of the item to retrieve.
@@ -220,11 +250,11 @@ export async function callUpdateItemDefinition(
  * This function retrieves the item definition for a given item by its ObjectId.
  * It calls the 'itemCrudPublic.getItemDefinition' function from the WorkloadClientAPI.
  * 
- * It returns the item definition if available, otherwise undefined.
+ * It returns a validated successful response; failed or malformed required reads throw.
  * 
  * @param {WorkloadClientAPI} workloadClient - An instance of the WorkloadClientAPI.
  * @param {string} itemId - The ObjectId of the item to retrieve the definition for.
- * @returns {Promise<GetItemDefinitionResult>} - The item definition result if successful, otherwise undefined.
+ * @returns {Promise<GetItemDefinitionResult>} - The successful item definition result.
  */ 
 export async function callGetItemDefinition(
     workloadClient: WorkloadClientAPI,
@@ -233,11 +263,14 @@ export async function callGetItemDefinition(
         const itemDefinition: GetItemDefinitionResult = await workloadClient.itemCrud.getItemDefinition({
             itemId: itemId,
         });
-        console.log("Successfully fetched item definition for item %s: %o", itemId, itemDefinition);
+        if (!itemDefinition?.definition || !Array.isArray(itemDefinition.definition.parts)) {
+            throw new Error("The host returned a missing or malformed required item-definition response.");
+        }
+        console.log("Successfully fetched item definition for item %s", itemId);
         return itemDefinition;
     } catch (exception) {
         console.error("Failed getting Item definition %s", itemId, exception);
-        return undefined;
+        throw new ItemLoadError("definition", exception);
     }
 }
 
@@ -246,7 +279,8 @@ export async function callGetItemDefinition(
  * It extracts the necessary metadata and payload from the item definition parts.
  * It handles the parsing of the payload and platform metadata, and returns a WorkloadItem.
  * 
- * If the item definition parts are not available or parsing fails, it will log an error and return a WorkloadItem with undefined payload.
+ * A successful definition without an application part is empty configuration.
+ * Missing responses or malformed parts are load failures, not empty items.
  * 
  * @param {GetItemResult} itemResult - The item result to convert.
  * @param {GetItemDefinitionResult} itemDefinitionResult - The item definition result to convert.
@@ -257,16 +291,30 @@ export function convertGetItemResultToWorkloadItem<T>(
         itemResult: GetItemResult,
         itemDefinitionResult: GetItemDefinitionResult, 
         defaultDefinition?: T): ItemWithDefinition<T> {            
+    validateItemMetadata(itemResult);
+    if (!itemDefinitionResult?.definition || !Array.isArray(itemDefinitionResult.definition.parts)) {
+        throw new ItemLoadError("definition", new Error("The host returned no valid definition-parts list."));
+    }
     let payload: T;
+    let hasApplicationPart = false;
     let itemPlatformMetadata: Item | undefined;
     let additionalParts: ItemDefinitionPart[] = [];
     
     if (itemDefinitionResult?.definition?.parts) {
         try {
-            // Iterate through all parts once and categorize them
+            const paths = new Set<string>();
             for (const part of itemDefinitionResult.definition.parts) {
+                if (!part || typeof part.path !== "string" || !part.path || typeof part.payload !== "string" ||
+                    part.payloadType !== PayloadType.InlineBase64 || paths.has(part.path)) {
+                    throw new Error("The host returned a malformed or duplicate item-definition part.");
+                }
+                paths.add(part.path);
                 if (part.path === ItemDefinitionPath.Default) {
+                    hasApplicationPart = true;
                     payload = decodeJsonFromBase64<T>(part.payload);
+                    if (payload === null) {
+                        throw new Error("The application-definition part is not a configuration object.");
+                    }
                 } else if (part.path === ItemDefinitionPath.Platform) {
                     const itemPlatformPayload = decodeJsonFromBase64<{ metadata?: Item }>(part.payload);
                     itemPlatformMetadata = itemPlatformPayload ? itemPlatformPayload.metadata : undefined;
@@ -276,17 +324,18 @@ export function convertGetItemResultToWorkloadItem<T>(
                 }
             }
         } catch (payloadParseError) {
-            console.error(`Failed parsing payload for item ${itemResult?.item.id}, itemDefinitionResult: ${itemDefinitionResult}`, payloadParseError);
+            console.error(`Failed parsing definition for item ${itemResult.item.id}`, payloadParseError);
+            throw new ItemLoadError("definition", payloadParseError);
         }
     }
 
     return {
         id: itemResult?.item.id,
         workspaceId: itemResult?.item.workspaceId,
-        type: itemPlatformMetadata?.type ?? itemResult?.item.type,
+        type: itemResult.item.type,
         displayName: itemPlatformMetadata?.displayName ?? itemResult?.item.displayName,
         description: itemPlatformMetadata?.description ?? itemResult?.item.description,
-        definition: payload ?? defaultDefinition,
+        definition: hasApplicationPart ? payload : defaultDefinition,
         additionalDefinitionParts: additionalParts,
     };
 }

@@ -5,10 +5,9 @@ import { createBrowserHistory } from "history";
 import React from "react";
 import { createRoot } from 'react-dom/client';
 
-import { FluentProvider } from "@fluentui/react-components";
 import { createWorkloadClient, InitParams, ItemTabActionContext } from '@ms-fabric/workload-client';
 
-import { fabricLightTheme } from "./theme";
+import { FabricHostThemeProvider } from "./FabricHostThemeProvider";
 import { App } from "./App";
 import { callGetItem } from "./controller/ItemCRUDController"
 
@@ -61,8 +60,8 @@ export async function initialize(params: InitParams) {
 
     const root = createRoot(rootElement);
     root.render(
-        <FluentProvider theme={fabricLightTheme}>
+        <FabricHostThemeProvider workloadClient={workloadClient}>
             <App history={history} workloadClient={workloadClient} />
-        </FluentProvider>
+        </FabricHostThemeProvider>
     );
 }

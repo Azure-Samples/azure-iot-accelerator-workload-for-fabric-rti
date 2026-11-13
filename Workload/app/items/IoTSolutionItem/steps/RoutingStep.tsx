@@ -17,9 +17,10 @@ import {
 } from "@fluentui/react-icons";
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { WizardStepProps } from "../../../components/Wizard";
+import { callNavigationOpenInNewBrowserTab } from "../../../controller/NavigationController";
 import { HubIdentityOption, collectHubIdentities } from "./IoTHubStep";
 import {
-  buildNativeEventStreamRouting,
+  buildNativeEventStreamHubUpdate,
   IOT_HUB_ROUTING_API_VERSION,
 } from "../IoTHubRouting";
 import "../IoTSolutionItem.scss";
@@ -372,8 +373,8 @@ export function RoutingStep({
       const propertiesRouteName = `fabric-properties-route-${suffix}`;
 
       // Update the IoT Hub with the new routing configuration
-      hubData.properties.routing = buildNativeEventStreamRouting(
-        hubData.properties.routing,
+      const update = buildNativeEventStreamHubUpdate(
+        hubData,
         {
           telemetryEndpoint: {
             name: telemetryEndpointName,
@@ -403,11 +404,15 @@ export function RoutingStep({
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
+          "If-Match": update.ifMatch,
         },
-        body: JSON.stringify(hubData),
+        body: JSON.stringify(update.body),
       });
 
       if (!putResp.ok) {
+        if (putResp.status === 412) {
+          throw new Error("The IoT Hub changed while routing was being configured. Refresh its configuration and review the routes before trying again.");
+        }
         const errBody = await putResp.text();
         let detail = "";
         try {
@@ -462,7 +467,7 @@ export function RoutingStep({
   return (
     <div className="iot-solution-step">
       <h2 className="iot-solution-step-title">
-        IoT Hub Routing
+        IoT Hub routing
       </h2>
       <Text className="iot-solution-step-description">
         Configure new message routes in Azure IoT Hub to continuously send device telemetry and properties
@@ -481,7 +486,7 @@ export function RoutingStep({
       {/* Section 1: MI Workspace Access Check */}
       <div className="iot-solution-config-card">
         <Text className="iot-solution-config-card-title">
-          <strong>1. Workspace Access for IoT Hub Managed Identity</strong>
+          <strong>1. Workspace access for IoT Hub managed identity</strong>
         </Text>
 
         <Text
@@ -626,6 +631,11 @@ export function RoutingStep({
                     <strong>Re-check</strong> above.{" "}
                     <a
                       href="https://learn.microsoft.com/en-us/fabric/real-time-intelligence/event-streams/connect-using-managed-identity#step-2-assign-fabric-workspace-permissions"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void callNavigationOpenInNewBrowserTab(workloadClient,
+                          "https://learn.microsoft.com/en-us/fabric/real-time-intelligence/event-streams/connect-using-managed-identity#step-2-assign-fabric-workspace-permissions");
+                      }}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -649,7 +659,7 @@ export function RoutingStep({
       {miCheckStatus === "has-access" && (
         <div className="iot-solution-config-card">
           <Text className="iot-solution-config-card-title">
-            <strong>2. Configure Message Routes</strong>
+            <strong>2. Configure message routes</strong>
           </Text>
 
           {!hasEndpointDetails && (
@@ -670,7 +680,7 @@ export function RoutingStep({
               <div className="iot-solution-validation" style={{ marginBottom: 8 }}>
                 <div className="iot-solution-validation-row">
                   <Text className="iot-solution-validation-label">
-                    Telemetry Route
+                    Telemetry route
                   </Text>
                   <Text className="iot-solution-validation-value">
                     DeviceMessages → Eventstream custom endpoint
@@ -678,7 +688,7 @@ export function RoutingStep({
                 </div>
                 <div className="iot-solution-validation-row">
                   <Text className="iot-solution-validation-label">
-                    Properties Route
+                    Properties route
                   </Text>
                   <Text className="iot-solution-validation-value">
                     TwinChangeEvents → Eventstream custom endpoint

@@ -5,6 +5,7 @@
         "allowUnreachableCode": false,
         "allowUnusedLabels": false,
         "downlevelIteration": true,
+        "erasableSyntaxOnly": true,
         "forceConsistentCasingInFileNames": true,
         "importHelpers": true,
         "inlineSources": true,
@@ -16,6 +17,7 @@
         "noUnusedLocals": true,
         "preserveSymlinks": false,
         "resolveJsonModule": true,
+        "rewriteRelativeImportExtensions": true,
         "skipLibCheck": true,
         "sourceMap": true,
         "strict": true,
@@ -34,6 +36,7 @@
         }
     },
     "exclude": [
-        "app/**/*.test.ts"
+        "app/**/*.test.ts",
+        "tests/**/*.test.tsx"
     ]
 }

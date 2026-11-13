@@ -323,12 +323,13 @@ export interface Shortcut {
   transform?: Transform;
 }
 
-export enum ShortcutConflictPolicy {
-  Abort = "Abort",
-  GenerateUniqueName = "GenerateUniqueName",
-  CreateOrOverwrite = "CreateOrOverwrite",
-  OverwriteOnly = "OverwriteOnly"
-}
+export const ShortcutConflictPolicy = {
+  Abort: "Abort",
+  GenerateUniqueName: "GenerateUniqueName",
+  CreateOrOverwrite: "CreateOrOverwrite",
+  OverwriteOnly: "OverwriteOnly"
+} as const;
+export type ShortcutConflictPolicy = typeof ShortcutConflictPolicy[keyof typeof ShortcutConflictPolicy];
 
 export interface CreateShortcutRequest {
   path: string;
@@ -501,59 +502,59 @@ export interface AsyncOperationIndicator {
 }
 
 
-// Enum for batch job states
-export enum BatchState {
-    STARTING = "starting",
-    RUNNING = "running",
-    DEAD = "dead",
-    SUCCESS = "success",
-    KILLED = "killed",
-    ERROR = "error",
-    NOT_STARTED = "not_started",
-    SUBMITTING = "submitting",
-    NOT_SUBMITTED = "not_submitted"
-}
+export const BatchState = {
+    STARTING: "starting",
+    RUNNING: "running",
+    DEAD: "dead",
+    SUCCESS: "success",
+    KILLED: "killed",
+    ERROR: "error",
+    NOT_STARTED: "not_started",
+    SUBMITTING: "submitting",
+    NOT_SUBMITTED: "not_submitted"
+} as const;
+export type BatchState = typeof BatchState[keyof typeof BatchState];
 
-// Enum for session states
-export enum SessionState {
-    STARTING = "starting",
-    RUNNING = "running",
-    IDLE = "idle",
-    DEAD = "dead",
-    SUCCESS = "success",
-    KILLED = "killed",
-    ERROR = "error", 
-    SHUTTING_DOWN = "shutting_down",
-    BUSY = "busy",
-    RECOVERING = "recovering",
-    NOT_STARTED = "not_started",
-    SUBMITTING = "submitting",
-    NOT_SUBMITTED = "not_submitted"
-}
+export const SessionState = {
+    STARTING: "starting",
+    RUNNING: "running",
+    IDLE: "idle",
+    DEAD: "dead",
+    SUCCESS: "success",
+    KILLED: "killed",
+    ERROR: "error",
+    SHUTTING_DOWN: "shutting_down",
+    BUSY: "busy",
+    RECOVERING: "recovering",
+    NOT_STARTED: "not_started",
+    SUBMITTING: "submitting",
+    NOT_SUBMITTED: "not_submitted"
+} as const;
+export type SessionState = typeof SessionState[keyof typeof SessionState];
 
-// Enum for job types
-export enum JobType {
-    SPARK_BATCH = "SparkBatch",
-    SPARK_SESSION = "SparkSession",
-    SCOPE_BATCH = "ScopeBatch",
-    JUPYTER_ENVIRONMENT = "JupyterEnvironment"
-}
+export const JobType = {
+    SPARK_BATCH: "SparkBatch",
+    SPARK_SESSION: "SparkSession",
+    SCOPE_BATCH: "ScopeBatch",
+    JUPYTER_ENVIRONMENT: "JupyterEnvironment"
+} as const;
+export type JobType = typeof JobType[keyof typeof JobType];
 
-// Enum for job results
-export enum JobResult {
-    UNCERTAIN = "Uncertain",
-    SUCCEEDED = "Succeeded",
-    FAILED = "Failed",
-    CANCELLED = "Cancelled"
-}
+export const JobResult = {
+    UNCERTAIN: "Uncertain",
+    SUCCEEDED: "Succeeded",
+    FAILED: "Failed",
+    CANCELLED: "Cancelled"
+} as const;
+export type JobResult = typeof JobResult[keyof typeof JobResult];
 
-// Enum for error sources
-export enum ErrorSource {
-    SYSTEM = "System",
-    USER = "User",
-    UNKNOWN = "Unknown",
-    DEPENDENCY = "Dependency"
-}
+export const ErrorSource = {
+    SYSTEM: "System",
+    USER: "User",
+    UNKNOWN: "Unknown",
+    DEPENDENCY: "Dependency"
+} as const;
+export type ErrorSource = typeof ErrorSource[keyof typeof ErrorSource];
 
 // Interfaces for batch operations
 export interface BatchRequest {
@@ -1086,4 +1087,3 @@ export interface AddGatewayRoleAssignmentRequest {
 export interface UpdateGatewayRoleAssignmentRequest {
   role: GatewayRole;
 }
-

@@ -35,6 +35,10 @@ export function IoTSolutionItemDefaultView({
 
   const workspaceId = item?.workspaceId || "";
 
+  const IngestionOverviewStepWrapper = (props: WizardStepProps) => (
+    <IngestionOverviewStep {...props} workloadClient={workloadClient} />
+  );
+
   // Wrap IoTHubStep to inject workloadClient
   const IoTHubStepWrapper = (props: WizardStepProps) => (
     <IoTHubStep {...props} workloadClient={workloadClient} />
@@ -65,7 +69,7 @@ export function IoTSolutionItemDefaultView({
       id: "overview",
       title: "Overview",
       description: "Connect IoT Hub data to Fabric analytics",
-      component: IngestionOverviewStep,
+      component: IngestionOverviewStepWrapper,
       validate: () => true,
       numbered: false,
     },
@@ -89,7 +93,7 @@ export function IoTSolutionItemDefaultView({
     },
     {
       id: "tables",
-      title: "Raw Data Tables",
+      title: "Raw data tables",
       description: "Create KQL tables for telemetry and properties",
       component: TableSetupStepWrapper,
       validate: async (context: Record<string, any>) => {
@@ -109,7 +113,7 @@ export function IoTSolutionItemDefaultView({
     },
     {
       id: "routing",
-      title: "IoT Hub Routing",
+      title: "IoT Hub routing",
       description: "Configure message routing to Eventstreams",
       component: RoutingStepWrapper,
       validate: async (context: Record<string, any>) => {
@@ -118,7 +122,7 @@ export function IoTSolutionItemDefaultView({
     },
     {
       id: "summary",
-      title: "Ready to Use",
+      title: "Ready to use",
       description: "Review the architecture and next steps",
       component: IngestionSummaryStep,
       numbered: false,

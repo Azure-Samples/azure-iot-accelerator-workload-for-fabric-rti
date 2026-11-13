@@ -165,7 +165,7 @@ pwsh .\scripts\Build\BuildManifestPackage.ps1 -Environment prod
 Once the workload manifest package is built, you can [upload it to the Fabric admin
 portal](https://learn.microsoft.com/en-us/fabric/extensibility-toolkit/tutorial-publish-workload):
 - Navigate to `Fabric portal -> gear icon -> Admin portal -> Workloads -> Publish`.
-- Upload the workload manifest package under `build\Manifest\Org.IoTSolutionAccelerator.1.0.0.nupkg`.
+- Upload the workload manifest package under `build\Manifest\Org.IoTSolutionAccelerator.2.0.0.nupkg`.
 - In the same page, select the newly uploaded workload. In the right panel, select a version then
   click `Add`.
 

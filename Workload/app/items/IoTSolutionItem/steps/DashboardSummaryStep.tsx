@@ -3,6 +3,7 @@
 
 import React from "react";
 import { Button } from "@fluentui/react-components";
+import { ArrowRight20Regular } from "@fluentui/react-icons";
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { WizardStepProps } from "../../../components/Wizard";
 import { callNavigationNavigate } from "../../../controller/NavigationController";
@@ -86,14 +87,14 @@ export function DashboardSummaryStep({
               {telemetryTable} and {propertiesTable}
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-architecture-node">
             <span className="iot-solution-flow-node-title">Generated KQL queries</span>
             <span className="iot-solution-flow-node-detail">
               Filtered by device and time range
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-architecture-node">
             <span className="iot-solution-flow-node-title">Dashboard visuals</span>
             <span className="iot-solution-flow-node-detail">
@@ -101,7 +102,7 @@ export function DashboardSummaryStep({
               {selectedProperties.length} value cards
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-architecture-node">
             <span className="iot-solution-flow-node-title">Operational insight</span>
             <span className="iot-solution-flow-node-detail">

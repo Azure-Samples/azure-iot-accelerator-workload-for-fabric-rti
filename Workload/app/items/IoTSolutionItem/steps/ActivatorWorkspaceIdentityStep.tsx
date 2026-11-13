@@ -175,7 +175,7 @@ export function ActivatorWorkspaceIdentityStep({
 
   return (
     <div className="iot-solution-step">
-      <h2 className="iot-solution-step-title">Workspace Identity</h2>
+      <h2 className="iot-solution-step-title">Workspace identity</h2>
       <Text className="iot-solution-step-description">
         Workspace identity enables Microsoft Fabric services to securely access
         and manage the resources required for the Activator data connection and

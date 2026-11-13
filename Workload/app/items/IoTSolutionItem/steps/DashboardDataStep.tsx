@@ -22,7 +22,8 @@ import { FabricPlatformAPIClient } from "../../../clients/FabricPlatformAPIClien
 import { Item } from "../../../clients/FabricPlatformTypes";
 import { getEventhouseItem } from "../eventhouseClient";
 import { acquireTokenWithConsent } from "../../../controller/AuthenticationController";
-import { RAW_EVENT_PROJECTION_KQL } from "../RawEventKql";
+import { dashboardFieldQuery, readDashboardFields } from "../DashboardData";
+import { parseIotMeta, parseKqlTableResult } from "../ModelAuthoring";
 import "../IoTSolutionItem.scss";
 
 const FABRIC_ITEM_READ_SCOPE = "https://api.fabric.microsoft.com/Item.Read.All";
@@ -55,17 +56,6 @@ interface PropertyField {
  * Then clicks "Inspect Tables" to extract distinct telemetry names (with numeric flag)
  * and property names via KQL queries. Results are shown as editable lists.
  */
-/** Extract @iot.meta key=value pairs from a KQL table docstring. */
-function parseIotMeta(docstring: string): Record<string, string> {
-  const meta: Record<string, string> = {};
-  const regex = /@iot\.meta\s+(\S+?)=(\S+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(docstring)) !== null) {
-    meta[match[1]] = match[2];
-  }
-  return meta;
-}
-
 /** Filter tables whose docstring contains @iot.meta tableRole=<role>. */
 function filterTablesByRole(
   allTables: string[],
@@ -286,7 +276,7 @@ export function DashboardDataStep({
           const doc = Array.isArray(r) ? r[1] : r.DocString;
           if (name) {
             tableNames.push(name);
-            if (doc) docstrings[name] = doc;
+            if (doc) { parseIotMeta(doc); docstrings[name] = doc; }
           }
         }
         setTables(tableNames);
@@ -311,7 +301,7 @@ export function DashboardDataStep({
     qsUri: string,
     dbName: string,
     query: string
-  ): Promise<any[]> => {
+  ): Promise<Record<string, unknown>[]> => {
     const accessToken = await acquireTokenWithConsent(workloadClient, KUSTO_SCOPE);
     const response = await fetch(`${qsUri}/v1/rest/query`, {
       method: "POST",
@@ -334,18 +324,8 @@ export function DashboardDataStep({
         `Unable to retrieve data required for dashboard generation. (${response.status}): ${detail}`
       );
     }
-    const result = await response.json();
-    // Kusto v1 response: Tables[0].Columns + Tables[0].Rows
-    const columns = result?.Tables?.[0]?.Columns || [];
-    const rows = result?.Tables?.[0]?.Rows || [];
-    // Map rows to objects using column names
-    return rows.map((row: any[]) => {
-      const obj: Record<string, any> = {};
-      columns.forEach((col: any, idx: number) => {
-        obj[col.ColumnName] = row[idx];
-      });
-      return obj;
-    });
+    const result = parseKqlTableResult(await response.json());
+    return result.Rows.map(row => Object.fromEntries(result.Columns.map((column, index) => [column.ColumnName, row[index]])));
   };
 
   // Inspect tables — runs KQL queries to extract telemetry and property fields
@@ -360,62 +340,16 @@ export function DashboardDataStep({
     setInspectError("");
 
     try {
-      // Query 1: Get distinct telemetry field names and whether they are numeric.
-      // Component telemetry is identified by cloudEvents_iothubdtsubject in user_headers;
-      // prefix those fields as `<component>_<field>` so they match the modeled-data columns.
-      // Root telemetry has an empty component and stays unprefixed.
-      const telemetryQuery = `${telemetryTableName}
-| where ingestion_time() >= ago(30d)
-${RAW_EVENT_PROJECTION_KQL}
-| extend j = data
-| extend keys = bag_keys(j)
-| mv-expand k = keys to typeof(string)
-| extend v = j[k]
-| extend valueType = gettype(v)
-| extend Key = iff(component == "", k, strcat(component, "_", k))
-| summarize arg_max(enqueuedTime, valueType) by Key, Component = component, Leaf = k
-| extend IsNumericType = valueType in ("int","long","real","decimal","double")
-| project Key, IsNumericType, Component, Leaf
-| order by Key asc`;
-
-      // Query 2: Get distinct property names. Component reported properties arrive nested under the
-      // component key with a `__t: "c"` marker; flatten those into `<component>_<field>` to match the
-      // modeled columns. Non-component object properties (no __t) are kept whole.
-      const propertiesQuery = `${propertiesTableName}
-| where ingestion_time() >= ago(30d)
-${RAW_EVENT_PROJECTION_KQL}
-| extend rp = data.properties.reported
-| extend keys = bag_keys(rp)
-| mv-expand key = keys to typeof(string)
-| where key !startswith "$" and key != "iothub-enqueuedtime" and key != "iothub-connection-device-id"
-| extend val = rp[key]
-| extend isComponent = (gettype(val) == "dictionary" and tostring(val["__t"]) == "c")
-| mv-expand subkey = iff(isComponent, bag_keys(val), pack_array(key)) to typeof(string)
-| where subkey != "__t"
-| extend Component = iff(isComponent, key, ""), Leaf = subkey
-| extend Key = iff(isComponent, strcat(key, "_", subkey), key)
-| distinct Key, Component, Leaf
-| order by Key asc`;
+      const telemetryQuery = dashboardFieldQuery(telemetryTableName, "telemetry");
+      const propertiesQuery = dashboardFieldQuery(propertiesTableName, "twin");
 
       const [telemetryRows, propertyRows] = await Promise.all([
         executeKqlQuery(queryServiceUri, selectedDatabaseName, telemetryQuery),
         executeKqlQuery(queryServiceUri, selectedDatabaseName, propertiesQuery),
       ]);
 
-      const tFields: TelemetryField[] = telemetryRows.map((row) => ({
-        key: row.Key,
-        isNumeric: row.IsNumericType === true || row.IsNumericType === 1,
-        included: true,
-        component: row.Component ? String(row.Component) : undefined,
-        leaf: row.Leaf != null ? String(row.Leaf) : undefined,
-      }));
-
-      const pFields: PropertyField[] = propertyRows.map((row) => ({
-        key: row.Key,
-        included: true,
-        component: row.Component ? String(row.Component) : undefined,
-        leaf: row.Leaf != null ? String(row.Leaf) : undefined,
-      }));
+      const tFields = readDashboardFields(telemetryRows, "telemetry");
+      const pFields = readDashboardFields(propertyRows, "twin");
 
       setTelemetryFields(tFields);
       setPropertyFields(pFields);
@@ -581,7 +515,7 @@ ${RAW_EVENT_PROJECTION_KQL}
 
   return (
     <div className="iot-solution-step">
-      <h2 className="iot-solution-step-title">Select Data Source and Fields</h2>
+      <h2 className="iot-solution-step-title">Select data source and fields</h2>
       <Text className="iot-solution-step-description">
         Select the raw data tables containing your IoT device data. Then inspect the
         tables to discover available telemetry and property fields.
@@ -632,7 +566,7 @@ ${RAW_EVENT_PROJECTION_KQL}
 
         <div className="iot-solution-field">
           <Label className="iot-solution-field-label" required htmlFor="dash-db-select">
-            KQL Database
+            KQL database
           </Label>
           <Dropdown
             id="dash-db-select"
@@ -658,11 +592,11 @@ ${RAW_EVENT_PROJECTION_KQL}
 
         <div className="iot-solution-field">
           <Label className="iot-solution-field-label" required htmlFor="dash-telemetry-table">
-            Raw Telemetry Table
+            Raw telemetry table
           </Label>
           <Dropdown
             id="dash-telemetry-table"
-            placeholder={loadingTables ? "Loading..." : "Select raw telemetry table"}
+            placeholder={loadingTables ? "Loading..." : "Select a table"}
             value={telemetryTableName}
             selectedOptions={telemetryTableName ? [telemetryTableName] : []}
             open={telemetryDropdownOpen}
@@ -705,11 +639,11 @@ ${RAW_EVENT_PROJECTION_KQL}
 
         <div className="iot-solution-field">
           <Label className="iot-solution-field-label" required htmlFor="dash-properties-table">
-            Raw Properties Table
+            Raw properties table
           </Label>
           <Dropdown
             id="dash-properties-table"
-            placeholder={loadingTables ? "Loading..." : "Select raw properties table"}
+            placeholder={loadingTables ? "Loading..." : "Select a table"}
             value={propertiesTableName}
             selectedOptions={propertiesTableName ? [propertiesTableName] : []}
             open={propertiesDropdownOpen}

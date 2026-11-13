@@ -2,29 +2,23 @@
 // Licensed under the MIT license.
 
 import React from "react";
+import { ArrowRight20Regular } from "@fluentui/react-icons";
+import type { WorkloadClientAPI } from "@ms-fabric/workload-client";
+import { callNavigationOpenInNewBrowserTab } from "../../../controller/NavigationController";
 import "../IoTSolutionItem.scss";
 
-/**
- * Introduces modeling as an optional semantic enrichment layer that combines
- * live telemetry with the device's latest reported state.
- */
-export function ModelOverviewStep() {
+export function ModelOverviewStep({ workloadClient }: { workloadClient: WorkloadClientAPI }) {
   return (
     <div className="iot-solution-step iot-solution-outcome-step">
       <div>
         <h2 className="iot-solution-step-title">
-          Enrich your live device data with semantic context
+          Turn raw IoT data into modeled data
         </h2>
         <p className="iot-solution-step-description">
-          Enrich your IoT device data with semantic context to enable more
-          powerful operational monitoring and richer AI-powered experiences. Use
-          a device model to transform selected telemetry and property fields into
-          typed, business-friendly columns and enrich telemetry events with the
-          latest device state from twin properties.
+          Use a device model to turn the telemetry and property fields you choose into typed, business-friendly columns. Each telemetry event also gets the device's latest state from its twin properties.
         </p>
         <p className="iot-solution-step-description" style={{ marginTop: "8px" }}>
-          Modeling is optional: your raw IoT data remains available for analytics
-          and reporting without it.
+          Modeling is optional. Your raw IoT data stays available for analytics and reporting.
         </p>
       </div>
 
@@ -32,22 +26,16 @@ export function ModelOverviewStep() {
         <h3 className="iot-solution-outcome-heading">What modeling unlocks</h3>
         <ul className="iot-solution-outcome-list">
           <li>
-            Correlate live measurements with current device state, such as
-            temperature by operating mode, vibration by firmware version, or
-            energy consumption by configured setpoint.
+            Compare measurements with device state, such as temperature by operating mode or vibration by firmware version.
           </li>
           <li>
-            Create strongly typed, business-friendly columns instead of repeatedly
-            parsing raw JSON in every query.
+            Query typed columns instead of parsing raw JSON in every query.
           </li>
           <li>
-            Enables more precise alerts and monitoring by evaluating telemetry in
-            the context of device configuration, status, and other reported
-            properties.
+            Set more precise alerts that account for device configuration and status.
           </li>
           <li>
-            Create a semantic foundation for dashboards, Activator rules,
-            operational monitoring, reporting, and AI-powered experiences.
+            Build dashboards, Activator rules, reports, and AI experiences on the same modeled data.
           </li>
         </ul>
       </section>
@@ -61,21 +49,21 @@ export function ModelOverviewStep() {
               Telemetry and property JSON
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Device model</span>
             <span className="iot-solution-flow-node-detail">
               Names, types, units, and components
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Current device state</span>
             <span className="iot-solution-flow-node-detail">
-              Normalized property changes and last-known values
+              Latest property values
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Modeled data</span>
             <span className="iot-solution-flow-node-detail">
@@ -86,24 +74,36 @@ export function ModelOverviewStep() {
       </section>
 
       <section className="iot-solution-prerequisites">
-        <h3 className="iot-solution-outcome-heading">What you will need</h3>
+        <h3 className="iot-solution-outcome-heading">What you&rsquo;ll need</h3>
         <ul className="iot-solution-outcome-list">
           <li>
-            Raw data ingestion configured through the{" "}
-            <strong>Ingest device data from your IoT Hub</strong> experience. The
-            raw telemetry and property tables are the source for the modeled data.
+            Raw telemetry and properties tables from the{" "}
+            <strong>Ingest device data from your IoT Hub</strong> experience.
           </li>
           <li>
-            A DTDL device model or IoT Central device template export describing
-            the telemetry and properties you want as typed columns.
+            Optionally, an Azure Device Registry (ADR) namespace{" "}
+            <a
+              href="https://learn.microsoft.com/en-us/azure/iot/device-registry/get-started-azure-device-registry?tabs=azure-portal"
+              onClick={(event) => {
+                event.preventDefault();
+                void callNavigationOpenInNewBrowserTab(workloadClient,
+                  "https://learn.microsoft.com/en-us/azure/iot/device-registry/get-started-azure-device-registry?tabs=azure-portal");
+              }}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--colorBrandForegroundLink)" }}
+            >
+              linked to your IoT Hub
+            </a>. Linking an ADR namespace to your IoT Hub allows devices to reference your model.
           </li>
           <li>
-            Recent device events so the accelerator can compare observed fields
-            with the uploaded model.
+            A device model: a Web of Things (WoT) Thing Model (recommended), a Digital Twins Definition Language (DTDL) model, or an IoT Central device template export.
           </li>
           <li>
-            Permission to read the raw data and create tables, update policies,
-            and a materialized view in the KQL database.
+            At least one device event in your raw tables (more events give better suggestions).
+          </li>
+          <li>
+            Permission to read raw data and to create tables, update policies, and a materialized view in the KQL database.
           </li>
         </ul>
       </section>

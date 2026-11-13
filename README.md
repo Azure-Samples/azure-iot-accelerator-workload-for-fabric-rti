@@ -1,5 +1,19 @@
 # Azure IoT Solution Accelerator Workload for Microsoft Fabric Real-Time Intelligence
 
+> [!NOTE]
+> **Version 2.0.0 is now available!**
+>
+> This release makes it easier to model your IoT device data with support for
+> **[Web of Things (WoT) Thing Models](https://www.w3.org/TR/wot-thing-description11/#introduction-tm)**. It also adds support
+> for **[device type references](https://aka.ms/iot-hub-agent-ready-data-doc)**, unlocking richer analytics and helping
+> agents understand your IoT device data in Microsoft Fabric.
+> See the [release notes](https://github.com/Azure-Samples/azure-iot-accelerator-workload-for-fabric-rti/releases/tag/v2.0.0)
+> for more details.
+>
+> Device type references are in preview. [Learn more](https://aka.ms/iot-hub-agent-ready-data-doc).
+>
+> For previous workload versions, see the [repository releases](https://github.com/Azure-Samples/azure-iot-accelerator-workload-for-fabric-rti/releases/).
+
 The Azure IoT Solution Accelerator Workload for Microsoft Fabric is a sample that
 demonstrates how Azure IoT device data can be turned into real-time analytics, operational
 monitoring, automated actions, and AI-powered insights using Fabric Real-Time Intelligence.
@@ -32,7 +46,7 @@ This accelerator helps organizations:
 - Retain raw telemetry and property updates for real-time and historical analysis.
 - Turn live device signals into operational dashboards, alerts, notifications, and automated
   response workflows.
-- Add semantic context from DTDL device models, making device data easier to query and understand.
+- Add semantic context from WoT Thing Models or DTDL device models, making device data easier to query and understand.
 - Explore device operations through natural-language questions grounded in real Fabric data.
 - Use the generated solution as a starting point for industry-specific or organization-specific
   IoT experiences.
@@ -67,7 +81,7 @@ Follow the steps below to set up and deploy the workload:
 > "Help me deploy this workload to Azure and publish it to my Microsoft Fabric tenant".
 > The deployment skill will guide you through the process.
 
-> Prerequisites: the setup commands below require PowerShell 7+, Node.js, and npm.
+> Prerequisites: the setup commands below require PowerShell 7+, Node.js 20.9+, and npm.
 
 1. Clone this repository.
 2. [Create the Microsoft Entra application for the workload](docs/create-entra-app.md).
@@ -173,8 +187,8 @@ raw tables directly, generate a Real-Time Dashboard, or optionally create a mode
 
 Raw IoT messages are flexible, but repeatedly parsing JSON and interpreting field names makes
 analytics, monitoring, and AI experiences harder to build and maintain. The optional modeling
-experience uses a DTDL device model or an IoT Central device template export to turn selected
-telemetry and reported properties into typed, business-friendly fields.
+experience uses a WoT Thing Model, a DTDL device model, or an IoT Central device template export to
+turn selected telemetry and reported properties into typed, business-friendly fields.
 
 It also combines telemetry events with the latest reported device state. This enables scenarios
 such as evaluating temperature by operating mode, vibration by firmware version, or energy
@@ -189,12 +203,14 @@ cases that are not included in the model.
 - A modeled data table containing typed telemetry fields enriched with current modeled property
   values.
 - KQL update policies that continuously maintain the generated entities as new data arrives.
+- Assignment of model IDs to Azure Device Registry (ADR) devices when using an
+  [IoT Hub linked to an ADR namespace](https://learn.microsoft.com/en-us/azure/iot/device-registry/get-started-azure-device-registry?tabs=azure-portal).
 
 **Generated flow:**
 
 `Raw property updates → normalized property history → latest property state`
 
-`Raw telemetry + device model + latest property state → typed, enriched modeled data`
+`Raw telemetry + device model + model ID assignments + latest property state → typed, enriched modeled data`
 
 The following example illustrates how real telemetry and property values move through the
 generated entities and become a modeled row:
@@ -271,7 +287,7 @@ based on the data available in Fabric.
 
 `Modeled device data + generated semantic instructions and query examples → Fabric Data Agent → generated KQL → grounded response`
 
-After creation, select the agent in Fabric Copilot and ask questions such as:
+After creation, select the agent in Fabric and ask questions such as:
 
 - Which devices have reported high temperature while in cooling mode?
 - Compare average vibration by firmware version over the last 24 hours.

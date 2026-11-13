@@ -22,6 +22,7 @@ import {
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { WizardStepProps } from "../../../components/Wizard";
 import { acquireTokenWithConsent } from "../../../controller/AuthenticationController";
+import { parseIotMeta } from "../ModelAuthoring";
 import {
   RAW_TABLE_SCHEMA,
   buildRawTableCommand,
@@ -44,17 +45,6 @@ function authHeader(token: string): string {
 
 function generateSuffix(): string {
   return Math.random().toString(36).substring(2, 6);
-}
-
-/** Extract @iot.meta key=value pairs from a KQL table docstring. */
-function parseIotMeta(docstring: string): Record<string, string> {
-  const meta: Record<string, string> = {};
-  const regex = /@iot\.meta\s+(\S+?)=(\S+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(docstring)) !== null) {
-    meta[match[1]] = match[2];
-  }
-  return meta;
 }
 
 /** Escape a string for use inside a double-quoted KQL string literal. */
@@ -751,7 +741,7 @@ export function TableSetupStep({
 
   return (
     <div className="iot-solution-step">
-      <h2 className="iot-solution-step-title">Create or Reuse Raw Data Tables</h2>
+      <h2 className="iot-solution-step-title">Create or reuse raw data tables</h2>
       <Text className="iot-solution-step-description">
         Raw data tables in the <strong>{databaseName}</strong> database will store raw device telemetry, properties,
         and operational data that will be used by dashboards, Activator rules, AI experiences, and other Fabric
@@ -760,9 +750,6 @@ export function TableSetupStep({
         <br />
         You may choose to create new raw data tables for this IoT Hub or combine data from multiple IoT Hubs
         by reusing existing tables.
-        Existing tables must include <code>user_headers: dynamic</code>, and their Eventstream SQL must
-        project <code>[User]</code> metadata into <code>user_headers</code>. Incompatible resources must
-        be updated or recreated before reuse; they are not upgraded automatically.
       </Text>
 
       {/* Mode selector */}
@@ -798,7 +785,7 @@ export function TableSetupStep({
           {/* Telemetry table name */}
           <div className="iot-solution-field">
             <Label className="iot-solution-field-label" required htmlFor="telemetry-table">
-              Telemetry Table Name
+              Telemetry table name
             </Label>
             <Input
               id="telemetry-table"
@@ -815,7 +802,7 @@ export function TableSetupStep({
           {/* Properties table name */}
           <div className="iot-solution-field">
             <Label className="iot-solution-field-label" required htmlFor="properties-table">
-              Properties Table Name
+              Properties table name
             </Label>
             <Input
               id="properties-table"
@@ -861,7 +848,7 @@ export function TableSetupStep({
             <>
               <div className="iot-solution-field">
                 <Label className="iot-solution-field-label" required htmlFor="reuse-telemetry">
-                  Telemetry Table
+                  Telemetry table
                 </Label>
                 <Dropdown
                   id="reuse-telemetry"
@@ -893,7 +880,7 @@ export function TableSetupStep({
 
               <div className="iot-solution-field">
                 <Label className="iot-solution-field-label" required htmlFor="reuse-properties">
-                  Properties Table
+                  Properties table
                 </Label>
                 <Dropdown
                   id="reuse-properties"
@@ -927,14 +914,6 @@ export function TableSetupStep({
                 <Button appearance="primary" onClick={applyReuse} disabled={!canApplyReuse}>
                   {applying ? "Applying..." : "Use selected tables"}
                 </Button>
-                <Button
-                  size="small"
-                  appearance="secondary"
-                  onClick={() => { void loadReusableTables(); }}
-                  disabled={applying || loadingReuse}
-                >
-                  Refresh
-                </Button>
               </div>
             </>
           )}
@@ -955,13 +934,13 @@ export function TableSetupStep({
           </div>
           <div className="iot-solution-validation">
             <div className="iot-solution-validation-row">
-              <Text className="iot-solution-validation-label">Telemetry Table</Text>
+              <Text className="iot-solution-validation-label">Telemetry table</Text>
               <Text className="iot-solution-validation-value">
                 {mode === "reuse" ? selectedTelemetry : telemetryTableName}
               </Text>
             </div>
             <div className="iot-solution-validation-row">
-              <Text className="iot-solution-validation-label">Properties Table</Text>
+              <Text className="iot-solution-validation-label">Properties table</Text>
               <Text className="iot-solution-validation-value">
                 {mode === "reuse" ? selectedProperties : propertiesTableName}
               </Text>

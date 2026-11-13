@@ -57,14 +57,14 @@ export function IoTSolutionItemDashboardWizard({
     },
     {
       id: "data-source",
-      title: "Data Source",
+      title: "Data source",
       description: "Select raw data tables and inspect fields",
       component: DashboardDataStepWrapper,
       validate: (context) => !!context.dashInspected,
     },
     {
       id: "generate-dashboard",
-      title: "Generate Dashboard",
+      title: "Generate dashboard",
       description: "Create the Real-Time Dashboard",
       component: DashboardGenerateStepWrapper,
       validate: (context) => !!context.dashDashboardCreated,
@@ -72,7 +72,7 @@ export function IoTSolutionItemDashboardWizard({
     },
     {
       id: "summary",
-      title: "Ready to Use",
+      title: "Ready to use",
       description: "Use and extend your dashboard",
       component: DashboardSummaryStepWrapper,
       validate: (context) => !!context.dashDashboardCreated,

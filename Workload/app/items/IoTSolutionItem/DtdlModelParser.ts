@@ -1,6 +1,9 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
+import type { JsonObject } from "./ModelAuthoring.ts";
+import { isDocstringValue } from "./Docstrings.ts";
+
 /**
  * Parses a DTDL (Digital Twin Definition Language) model file and extracts
  * telemetry and property capabilities with their Kusto column types.
@@ -26,6 +29,11 @@ export interface DtdlCapability {
   schema: string;
   kustoType: string;
   included: boolean;
+  semanticTypes?: string[];
+  enumValues?: { value: string | number; label?: string; description?: string }[];
+  declaredSchema?: unknown;
+  declaredBy?: string;
+  declaredAnnotations?: JsonObject;
 }
 
 export interface DtdlParseResult {
@@ -33,6 +41,15 @@ export interface DtdlParseResult {
   displayName: string;
   telemetries: DtdlCapability[];
   properties: DtdlCapability[];
+  description?: string;
+  declaredModelMetadata?: JsonObject;
+}
+
+export class UnsupportedDtdlModelFileError extends Error {
+  constructor() {
+    super("Unsupported model file. Provide a DTDL interface, an array of interfaces, or an IoT Central device template export.");
+    this.name = "UnsupportedDtdlModelFileError";
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -45,7 +62,7 @@ const SCHEMA_TO_KUSTO: Record<string, string> = {
   integer: "int",
   long: "long",
   string: "string",
-  date: "date",
+  date: "datetime",
   dateTime: "datetime",
   time: "string",
   boolean: "bool",
@@ -60,6 +77,12 @@ const SCHEMA_TO_KUSTO: Record<string, string> = {
   geopoint: "dynamic",
   Vector: "dynamic",
   vector: "dynamic",
+  point: "dynamic",
+  multiPoint: "dynamic",
+  lineString: "dynamic",
+  multiLineString: "dynamic",
+  polygon: "dynamic",
+  multiPolygon: "dynamic",
 };
 
 /**
@@ -183,9 +206,7 @@ function normalizeToInterfaces(modelJson: unknown): Record<string, unknown>[] {
   );
 
   if (interfaces.length === 0) {
-    throw new Error(
-      "Unsupported model file. Provide a DTDL interface, an array of interfaces, or an IoT Central device template export."
-    );
+    throw new UnsupportedDtdlModelFileError();
   }
   return interfaces;
 }
@@ -243,24 +264,64 @@ export function parseDtdlModel(modelJson: unknown): DtdlParseResult {
   const ifaceMap = new Map<string, Record<string, unknown>>();
   for (const iface of interfaces) {
     const id = iface["@id"];
-    if (typeof id === "string") ifaceMap.set(id, iface);
+    if (typeof id === "string") {
+      if (ifaceMap.has(id)) throw new Error(`Duplicate DTDL interface ID: ${id}.`);
+      ifaceMap.set(id, iface);
+    }
   }
+  const schemas = new Map<string, Record<string, unknown>>();
+  const collectSchemas = (value: unknown) => {
+    if (Array.isArray(value)) value.forEach(collectSchemas);
+    else if (isRecord(value)) {
+      if (typeof value["@id"] === "string" && !hasType(value["@type"], "Interface")) {
+        schemas.set(value["@id"], value);
+      }
+      Object.values(value).forEach(collectSchemas);
+    }
+  };
+  interfaces.forEach(collectSchemas);
+  const resolveSchema = (value: unknown, active = new Set<string>()): unknown => {
+    if (typeof value === "string" && value.startsWith("dtmi:")) {
+      if (active.has(value)) throw new Error(`Cyclic DTDL schema reference: ${value}.`);
+      const schema = schemas.get(value);
+      if (!schema) throw new Error(`Required DTDL schema was not supplied: ${value}.`);
+      return resolveSchema(schema, new Set([...active, value]));
+    }
+    if (!isRecord(value)) return value;
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+      key,
+      ["schema", "elementSchema", "valueSchema"].includes(key) ? resolveSchema(item, active)
+        : key === "fields" && Array.isArray(item) ? item.map(field => resolveSchema(field, active))
+        : (key === "mapKey" || key === "mapValue") ? resolveSchema(item, active) : item,
+    ]));
+  };
 
   const root = resolveRootInterface(interfaces);
   const modelId = (root["@id"] as string) || "";
   const displayName = getDisplayName(root) || modelId;
+  const declaredModelMetadata: JsonObject = {};
+  for (const key of ["@id", "displayName", "description"]) {
+    if (!Object.prototype.hasOwnProperty.call(root, key)) continue;
+    if (!isDocstringValue(root[key])) throw new Error(`Invalid declared DTDL model ${key}.`);
+    declaredModelMetadata[key] = root[key];
+  }
 
   const telemetries: DtdlCapability[] = [];
   const properties: DtdlCapability[] = [];
   const seenNames = new Set<string>();
+  const bindings = new Map<string, string>();
 
   // Resolve an extends/component reference (a DTMI string or an inline interface) to an interface object.
   function resolveInterfaceRef(
     ref: unknown
   ): Record<string, unknown> | undefined {
-    if (typeof ref === "string") return ifaceMap.get(ref);
+    if (typeof ref === "string") {
+      const resolved = ifaceMap.get(ref);
+      if (!resolved) throw new Error(`Required DTDL interface was not supplied: ${ref}.`);
+      return resolved;
+    }
     if (isRecord(ref)) return ref;
-    return undefined;
+    throw new Error("A DTDL inheritance/component reference is invalid.");
   }
 
   /**
@@ -276,9 +337,13 @@ export function parseDtdlModel(modelJson: unknown): DtdlParseResult {
   function extractCapabilities(
     iface: Record<string, unknown> | undefined,
     componentName: string | undefined,
-    visited: Set<Record<string, unknown>>
+    visited: Set<Record<string, unknown>>,
+    active = new Set<Record<string, unknown>>()
   ) {
-    if (!iface || visited.has(iface)) return;
+    if (!iface) throw new Error("A required DTDL interface is missing.");
+    if (active.has(iface)) throw new Error("Cyclic DTDL inheritance or component reference.");
+    if (visited.has(iface)) return;
+    active.add(iface);
     visited.add(iface);
 
     const contents = iface["contents"];
@@ -292,11 +357,13 @@ export function parseDtdlModel(modelJson: unknown): DtdlParseResult {
         // Interface object or a DTMI reference. DTDL forbids nested components; if we are already
         // inside one, keep the outer component name as the prefix.
         if (hasType(capType, "Component")) {
+          if (componentName) throw new Error("Nested DTDL components are unsupported.");
           const compName = (cap["name"] as string) || componentName;
           extractCapabilities(
             resolveInterfaceRef(cap["schema"]),
             componentName || compName,
-            new Set<Record<string, unknown>>()
+            new Set<Record<string, unknown>>(),
+            active
           );
           continue;
         }
@@ -312,10 +379,40 @@ export function parseDtdlModel(modelJson: unknown): DtdlParseResult {
         // and are not reported by the device, so they won't appear in device data.
         if (isProperty && hasType(capType, "Cloud")) continue;
 
-        const columnName = componentName ? `${componentName}_${leafName}` : leafName;
+        const sourceName = componentName ? `${componentName}_${leafName}` : leafName;
+        const columnName = sourceName === "event_time" ? "event_time_value" : sourceName;
+        const binding = JSON.stringify([componentName || "", leafName]);
+        if (bindings.has(columnName) && bindings.get(columnName) !== binding) {
+          throw new Error(`Distinct DTDL paths collide on output name "${columnName}". Rename the conflicting capability.`);
+        }
+        bindings.set(columnName, binding);
         if (seenNames.has(columnName)) continue;
         seenNames.add(columnName);
+        const schema = resolveSchema(cap["schema"]);
+        if ((typeof schema !== "string" && !isRecord(schema)) ||
+            (typeof schema === "string" && !Object.prototype.hasOwnProperty.call(SCHEMA_TO_KUSTO, normalizePrimitiveSchema(schema)))) {
+          throw new Error(`Unsupported or missing DTDL schema on ${leafName}.`);
+        }
+        if (isRecord(schema) && hasType(schema["@type"], "Enum") && schema.valueSchema !== "string" && schema.valueSchema !== "integer") {
+          throw new Error(`Unsupported DTDL enum value schema on ${leafName}.`);
+        }
+        const enumValues = isRecord(schema) && hasType(schema["@type"], "Enum") && Array.isArray(schema.enumValues)
+          ? schema.enumValues.map(value => {
+            if (!isRecord(value) || (typeof value.enumValue !== "string" && typeof value.enumValue !== "number") ||
+                (typeof value.enumValue === "number" && !Number.isFinite(value.enumValue))) {
+              throw new Error(`Invalid DTDL enum value on ${leafName}.`);
+            }
+            return { value: value.enumValue, label: getDisplayName(value) || (typeof value.name === "string" ? value.name : undefined),
+              description: getDescription(value) || undefined };
+          }) : undefined;
 
+        const declaredAnnotations: JsonObject = {};
+        for (const key of ["@id", "@type", "name", "displayName", "description", "comment", "unit", "writable"]) {
+          if (!Object.prototype.hasOwnProperty.call(cap, key)) continue;
+          const value = cap[key];
+          if (!isDocstringValue(value)) throw new Error(`Invalid declared DTDL ${key} on ${leafName}.`);
+          declaredAnnotations[key] = value;
+        }
         const capability: DtdlCapability = {
           name: columnName,
           leafName,
@@ -324,9 +421,15 @@ export function parseDtdlModel(modelJson: unknown): DtdlParseResult {
           unit: typeof cap["unit"] === "string" ? (cap["unit"] as string) : undefined,
           description: getDescription(cap) || undefined,
           kind: isTelemetry ? "Telemetry" : "Property",
-          schema: resolveSchemaName(cap["schema"]),
-          kustoType: resolveKustoType(cap["schema"]),
+          schema: resolveSchemaName(schema),
+          kustoType: resolveKustoType(schema),
           included: true,
+          declaredSchema: schema,
+          declaredBy: typeof iface["@id"] === "string" ? iface["@id"] : undefined,
+          declaredAnnotations,
+          semanticTypes: asArray(capType).filter((type): type is string =>
+            typeof type === "string" && !["Telemetry", "Property", "Cloud"].includes(type)),
+          enumValues,
         };
         (isTelemetry ? telemetries : properties).push(capability);
       }
@@ -335,11 +438,12 @@ export function parseDtdlModel(modelJson: unknown): DtdlParseResult {
     // Follow inherited interfaces (extends): DTMI strings or inline interface objects.
     // Inherited capabilities belong to the same (component or root) context.
     for (const ext of asArray(iface["extends"])) {
-      extractCapabilities(resolveInterfaceRef(ext), componentName, visited);
+      extractCapabilities(resolveInterfaceRef(ext), componentName, visited, active);
     }
+    active.delete(iface);
   }
 
   extractCapabilities(root, undefined, new Set<Record<string, unknown>>());
 
-  return { modelId, displayName, telemetries, properties };
+  return { modelId, displayName, telemetries, properties, description: getDescription(root) || undefined, declaredModelMetadata };
 }

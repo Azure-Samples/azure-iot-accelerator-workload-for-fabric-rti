@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 
 import React from "react";
+import { ArrowRight20Regular } from "@fluentui/react-icons";
 import "../IoTSolutionItem.scss";
 
 /**
@@ -54,14 +55,14 @@ export function DashboardOverviewStep() {
               Telemetry and property updates
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Field discovery</span>
             <span className="iot-solution-flow-node-detail">
               Select the signals that matter
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Real-Time Dashboard</span>
             <span className="iot-solution-flow-node-detail">

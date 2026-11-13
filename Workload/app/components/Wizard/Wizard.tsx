@@ -24,7 +24,7 @@ import './Wizard.scss';
 
 import React from "react";
 import { Text, Button } from "@fluentui/react-components";
-import { completeWizardSafely, getPersistableWizardContext } from "./wizardUtils";
+import { adjacentWizardStep, completeWizardSafely, getPersistableWizardContext } from "./wizardUtils";
 
 /**
  * Built-in navigation component for wizard
@@ -42,7 +42,7 @@ function WizardNavigation({
     onCancel,
     labels,
     currentStepIndex,
-    totalSteps
+    totalSteps,
 }: WizardNavigationProps) {
     // Derive states from the registration data
     const isLastStep = currentStepIndex === totalSteps - 1;
@@ -55,7 +55,7 @@ function WizardNavigation({
                     <Button 
                         appearance="secondary"
                         onClick={onCancel}
-                        disabled={isCompleting}
+                        disabled={navigationDisabled || isCompleting}
                         data-testid="wizard-cancel-btn"
                     >
                         {labels.cancel}
@@ -317,6 +317,8 @@ export function WizardControl({
     const currentStepIndex = steps.findIndex(step => step.id === currentStepId);
     const currentStep = steps[currentStepIndex];
     const navigationDisabled = !!currentStep?.isNavigationDisabled?.(wizardContext);
+    const nextAvailableIndex = adjacentWizardStep(currentStepIndex, 1, steps.length);
+    const previousAvailableIndex = adjacentWizardStep(currentStepIndex, -1, steps.length);
     
     // Navigation labels with defaults
     const labels = {
@@ -398,8 +400,8 @@ export function WizardControl({
      * @returns Step status: 'completed' | 'current' | 'upcoming'
      */
     const getStepStatus = (stepIndex: number) => {
-        if (completedSteps.has(steps[stepIndex].id) || stepIndex < currentStepIndex) return 'completed';
         if (stepIndex === currentStepIndex) return 'current';
+        if (completedSteps.has(steps[stepIndex].id) || stepIndex < currentStepIndex) return 'completed';
         return 'upcoming';
     };
 
@@ -429,6 +431,7 @@ export function WizardControl({
     };
 
     const completeWizard = async () => {
+        if (navigationDisabled || (canFinish && !canFinish(currentStepId, wizardContext))) return;
         if (completionStarted.current) return;
         completionStarted.current = true;
         setIsCompleting(true);
@@ -455,10 +458,10 @@ export function WizardControl({
         // Mark current step as completed
         setCompletedSteps(prev => new Set([...prev, currentStepId]));
 
-        if (currentStepIndex < steps.length - 1) {
-            const nextStep = steps[currentStepIndex + 1];
+        if (nextAvailableIndex !== undefined) {
+            const nextStep = steps[nextAvailableIndex];
             setCurrentStepId(nextStep.id);
-            onStepChange?.(nextStep.id, currentStepIndex + 1);
+            onStepChange?.(nextStep.id, nextAvailableIndex);
         } else {
             // Last step - complete wizard
             await completeWizard();
@@ -470,10 +473,10 @@ export function WizardControl({
      */
     const handlePrevious = () => {
         if (navigationDisabled) return;
-        if (currentStepIndex > 0) {
-            const previousStep = steps[currentStepIndex - 1];
+        if (previousAvailableIndex !== undefined) {
+            const previousStep = steps[previousAvailableIndex];
             setCurrentStepId(previousStep.id);
-            onStepChange?.(previousStep.id, currentStepIndex - 1);
+            onStepChange?.(previousStep.id, previousAvailableIndex);
         } else if (onFirstStepBack) {
             onFirstStepBack();
         }
@@ -551,8 +554,8 @@ export function WizardControl({
         onPrevious: handlePrevious,
         onGoToStep: goToStep,
         resetStepsFrom,
-        isFirstStep: currentStepIndex === 0 && !onFirstStepBack,
-        isLastStep: currentStepIndex === steps.length - 1
+        isFirstStep: previousAvailableIndex === undefined && !onFirstStepBack,
+        isLastStep: nextAvailableIndex === undefined
     };
 
     // Navigation props
@@ -561,7 +564,7 @@ export function WizardControl({
         totalSteps: steps.length,
         canFinish: canFinish ? canFinish(currentStepId, wizardContext) : true,
         canGoNext,
-        disablePrevious: currentStepIndex === 0 && !onFirstStepBack,
+        disablePrevious: previousAvailableIndex === undefined && !onFirstStepBack,
         navigationDisabled,
         isCompleting,
         onPrevious: handlePrevious,
@@ -600,16 +603,20 @@ export function WizardControl({
                                 .slice(0, index + 1)
                                 .filter(candidate => candidate.numbered !== false)
                                 .length;
-                            const isClickable = allowStepNavigation && (
+                            const isClickable = !navigationDisabled && allowStepNavigation && (
                                 index <= currentStepIndex || completedSteps.has(step.id)
                             );
 
-                            return (
-                                <div key={step.id}>
-                                    {/* Individual Step Container */}
+                            const stepElement = (
                                     <div 
                                         className={`wizard-control__step ${isClickable ? 'wizard-control__step--clickable' : 'wizard-control__step--disabled'}`}
                                         onClick={() => handleStepClick(step, index)}
+                                        onKeyDown={(event) => {
+                                            if (isClickable && (event.key === "Enter" || event.key === " ")) {
+                                                event.preventDefault();
+                                                handleStepClick(step, index);
+                                            }
+                                        }}
                                         role="button"
                                         tabIndex={isClickable ? 0 : -1}
                                         aria-current={status === 'current' ? 'step' : undefined}
@@ -659,12 +666,16 @@ export function WizardControl({
                                             )}
                                         </div>
                                     </div>
+                            );
+                            return (
+                                <div key={step.id}>
+                                    {stepElement}
 
                                     {/* Connecting Line Between Steps */}
                                     {index < steps.length - 1 && (
                                         <div 
                                             className={`wizard-control__step-connector ${
-                                                index < currentStepIndex || completedSteps.has(step.id) 
+                                                index < currentStepIndex || completedSteps.has(step.id)
                                                     ? 'wizard-control__step-connector--completed' 
                                                     : 'wizard-control__step-connector--upcoming'
                                             }`} 

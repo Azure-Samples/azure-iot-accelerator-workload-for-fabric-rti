@@ -74,21 +74,21 @@ export function IoTSolutionItemActivatorWizard({
     },
     {
       id: "select-table",
-      title: "Monitoring Data",
+      title: "Monitoring data",
       description: "Select the modeled device data to evaluate",
       component: SelectTableStepWrapper,
       validate: (context) => !!context.actTableName,
     },
     {
       id: "workspace-identity",
-      title: "Workspace Identity",
+      title: "Workspace identity",
       description: "Enable secure Fabric resource access",
       component: WorkspaceIdentityStepWrapper,
       validate: (context) => !!context.actWorkspaceIdentityReady,
     },
     {
       id: "create-resources",
-      title: "Activator Resources",
+      title: "Activator resources",
       description: "Create the live data feed and Activator",
       component: CreateResourcesStepWrapper,
       validate: (context) => !!context.activatorCreated,
@@ -96,7 +96,7 @@ export function IoTSolutionItemActivatorWizard({
     },
     {
       id: "summary",
-      title: "Ready to Configure",
+      title: "Ready to configure",
       description: "Review the monitoring flow and create rules",
       component: SummaryStepWrapper,
       numbered: false,
@@ -106,7 +106,7 @@ export function IoTSolutionItemActivatorWizard({
 
   return (
     <WizardControl
-      title="Set Up Activator Rules"
+      title="Set up Activator rules"
       steps={steps}
       onComplete={onWizardComplete}
       canFinish={(_stepId, context) => !!context.activatorCreated}
