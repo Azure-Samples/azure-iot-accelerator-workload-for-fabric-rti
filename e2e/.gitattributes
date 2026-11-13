@@ -1,0 +1,2 @@
+# Preserve uploaded model bytes for fixture SHA-256 checks.
+fixtures/ThermoProX200-*.json -text whitespace=cr-at-eol

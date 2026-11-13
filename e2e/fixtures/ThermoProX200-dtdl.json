@@ -1,0 +1,427 @@
+[
+  {
+    "@context": [
+      "dtmi:iotcentral:context;2",
+      "dtmi:dtdl:context;2"
+    ],
+    "@id": "dtmi:example:ThermoPro_X200;1",
+    "@type": "Interface",
+    "displayName": {
+      "en": "ThermoPro X200"
+    },
+    "contents": [
+      {
+        "@id": "dtmi:example:ThermoPro_X200:temperature;1",
+        "@type": ["Telemetry", "Temperature"],
+        "displayName": { "en": "Temperature" },
+        "name": "temperature",
+        "schema": "double",
+        "unit": "degreeCelsius"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:humidity;1",
+        "@type": ["Telemetry", "RelativeHumidity"],
+        "displayName": { "en": "Humidity" },
+        "name": "humidity",
+        "schema": "double",
+        "unit": "percent"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:pressure;1",
+        "@type": ["Telemetry", "Pressure"],
+        "displayName": { "en": "Pressure" },
+        "name": "pressure",
+        "schema": "double",
+        "unit": "millibar"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:co2Level;1",
+        "@type": "Telemetry",
+        "displayName": { "en": "CO2 Level" },
+        "name": "co2Level",
+        "schema": "double"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:airQualityIndex;1",
+        "@type": "Telemetry",
+        "displayName": { "en": "Air Quality Index" },
+        "name": "airQualityIndex",
+        "schema": "double"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:batteryVoltage;1",
+        "@type": ["Telemetry", "Voltage"],
+        "displayName": { "en": "Battery Voltage" },
+        "name": "batteryVoltage",
+        "schema": "double",
+        "unit": "volt"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:signalStrength;1",
+        "@type": "Telemetry",
+        "displayName": { "en": "Signal Strength (dBm)" },
+        "name": "signalStrength",
+        "schema": "integer"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:uptime;1",
+        "@type": "Telemetry",
+        "displayName": { "en": "Uptime" },
+        "name": "uptime",
+        "schema": "integer"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:status;1",
+        "@type": ["Telemetry", "State", "Visualized"],
+        "displayName": { "en": "Status" },
+        "name": "status",
+        "schema": {
+          "@id": "dtmi:example:ThermoPro_X200:status:schema;1",
+          "@type": "Enum",
+          "valueSchema": "string",
+          "enumValues": [
+            {
+              "@id": "dtmi:example:ThermoPro_X200:status:schema:normal;1",
+              "displayName": { "en": "Normal" },
+              "enumValue": "normal",
+              "name": "normal"
+            },
+            {
+              "@id": "dtmi:example:ThermoPro_X200:status:schema:warning;1",
+              "displayName": { "en": "Warning" },
+              "enumValue": "warning",
+              "name": "warning"
+            },
+            {
+              "@id": "dtmi:example:ThermoPro_X200:status:schema:critical;1",
+              "displayName": { "en": "Critical" },
+              "enumValue": "critical",
+              "name": "critical"
+            }
+          ]
+        },
+        "colors": [
+          { "color": "#01B8AA", "value": "normal" },
+          { "color": "#FE9666", "value": "warning" },
+          { "color": "#FD625E", "value": "critical" }
+        ]
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:operatingMode;1",
+        "@type": ["Telemetry", "State", "Visualized"],
+        "displayName": { "en": "Operating Mode" },
+        "name": "operatingMode",
+        "schema": {
+          "@id": "dtmi:example:ThermoPro_X200:operatingMode:schema;1",
+          "@type": "Enum",
+          "valueSchema": "string",
+          "enumValues": [
+            {
+              "@id": "dtmi:example:ThermoPro_X200:operatingMode:schema:cooling;1",
+              "displayName": { "en": "Cooling" },
+              "enumValue": "cooling",
+              "name": "cooling"
+            },
+            {
+              "@id": "dtmi:example:ThermoPro_X200:operatingMode:schema:heating;1",
+              "displayName": { "en": "Heating" },
+              "enumValue": "heating",
+              "name": "heating"
+            },
+            {
+              "@id": "dtmi:example:ThermoPro_X200:operatingMode:schema:idle;1",
+              "displayName": { "en": "Idle" },
+              "enumValue": "idle",
+              "name": "idle"
+            }
+          ]
+        },
+        "colors": [
+          { "color": "#374649", "value": "idle" },
+          { "color": "#01B8AA", "value": "cooling" },
+          { "color": "#FD625E", "value": "heating" }
+        ]
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:alertActive;1",
+        "@type": "Telemetry",
+        "displayName": { "en": "Alert Active" },
+        "name": "alertActive",
+        "schema": "boolean"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:timestamp;1",
+        "@type": "Telemetry",
+        "displayName": { "en": "Timestamp" },
+        "name": "timestamp",
+        "schema": "dateTime"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:gpsLocation;1",
+        "@type": ["Telemetry", "Location"],
+        "displayName": { "en": "GPS Location" },
+        "name": "gpsLocation",
+        "schema": {
+          "@id": "dtmi:example:ThermoPro_X200:gpsLocation:schema;1",
+          "@type": "Object",
+          "fields": [
+            {
+              "name": "lat",
+              "displayName": { "en": "Latitude" },
+              "schema": "double"
+            },
+            {
+              "name": "lon",
+              "displayName": { "en": "Longitude" },
+              "schema": "double"
+            },
+            {
+              "name": "floor",
+              "displayName": { "en": "Floor" },
+              "schema": "integer"
+            }
+          ]
+        }
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:customerName;1",
+        "@type": ["Property", "StringValue"],
+        "displayName": { "en": "Customer Name" },
+        "name": "customerName",
+        "schema": "string",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:firmwareVersion;1",
+        "@type": ["Property", "StringValue"],
+        "displayName": { "en": "Firmware Version" },
+        "name": "firmwareVersion",
+        "schema": "string",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:location;1",
+        "@type": ["Property", "StringValue"],
+        "displayName": { "en": "Location" },
+        "name": "location",
+        "schema": "string",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:deviceModel;1",
+        "@type": ["Property", "StringValue"],
+        "displayName": { "en": "Device Model" },
+        "name": "deviceModel",
+        "schema": "string",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:serialNumber;1",
+        "@type": ["Property", "StringValue"],
+        "displayName": { "en": "Serial Number" },
+        "name": "serialNumber",
+        "schema": "string",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:isOnline;1",
+        "@type": ["Property", "BooleanValue"],
+        "displayName": { "en": "Is Online" },
+        "name": "isOnline",
+        "schema": "boolean",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:lastCalibrated;1",
+        "@type": "Property",
+        "displayName": { "en": "Last Calibrated" },
+        "name": "lastCalibrated",
+        "schema": "dateTime",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:installYear;1",
+        "@type": ["Property", "NumberValue"],
+        "displayName": { "en": "Install Year" },
+        "name": "installYear",
+        "schema": "integer",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:maintenanceSchedule;1",
+        "@type": "Property",
+        "displayName": { "en": "Maintenance Schedule" },
+        "name": "maintenanceSchedule",
+        "schema": {
+          "@id": "dtmi:example:ThermoPro_X200:maintenanceSchedule:schema;1",
+          "@type": "Object",
+          "fields": [
+            {
+              "name": "intervalDays",
+              "displayName": { "en": "Interval Days" },
+              "schema": "integer"
+            },
+            {
+              "name": "lastServiceDate",
+              "displayName": { "en": "Last Service Date" },
+              "schema": "date"
+            }
+          ]
+        },
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:lastKnownTemperature;1",
+        "@type": ["Property", "Temperature"],
+        "displayName": { "en": "Last Known Temperature" },
+        "name": "lastKnownTemperature",
+        "schema": "double",
+        "unit": "degreeCelsius",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:lastKnownStatus;1",
+        "@type": ["Property", "StringValue"],
+        "displayName": { "en": "Last Known Status" },
+        "name": "lastKnownStatus",
+        "schema": "string",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:lastReportedAt;1",
+        "@type": "Property",
+        "displayName": { "en": "Last Reported At" },
+        "name": "lastReportedAt",
+        "schema": "dateTime",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:totalMessagesSent;1",
+        "@type": ["Property", "NumberValue"],
+        "displayName": { "en": "Total Messages Sent" },
+        "name": "totalMessagesSent",
+        "schema": "integer",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:thermostat;1",
+        "@type": "Component",
+        "displayName": { "en": "Thermostat" },
+        "name": "thermostat",
+        "schema": "dtmi:example:ThermoPro_X200:thermostatComponent;1"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:powerModule;1",
+        "@type": "Component",
+        "displayName": { "en": "Power Module" },
+        "name": "powerModule",
+        "schema": "dtmi:example:ThermoPro_X200:powerModuleComponent;1"
+      }
+    ]
+  },
+  {
+    "@context": [
+      "dtmi:iotcentral:context;2",
+      "dtmi:dtdl:context;2"
+    ],
+    "@id": "dtmi:example:ThermoPro_X200:thermostatComponent;1",
+    "@type": "Interface",
+    "displayName": { "en": "Thermostat Component" },
+    "contents": [
+      {
+        "@id": "dtmi:example:ThermoPro_X200:thermostatComponent:targetTemperature;1",
+        "@type": ["Telemetry", "Temperature"],
+        "displayName": { "en": "Target Temperature" },
+        "name": "targetTemperature",
+        "schema": "double",
+        "unit": "degreeCelsius"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:thermostatComponent:fanSpeed;1",
+        "@type": "Telemetry",
+        "displayName": { "en": "Fan Speed" },
+        "name": "fanSpeed",
+        "schema": "integer",
+        "unit": "percent"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:thermostatComponent:setpoint;1",
+        "@type": ["Property", "Temperature"],
+        "displayName": { "en": "Setpoint" },
+        "name": "setpoint",
+        "schema": "double",
+        "unit": "degreeCelsius",
+        "writable": true
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:thermostatComponent:scheduleEnabled;1",
+        "@type": ["Property", "BooleanValue"],
+        "displayName": { "en": "Schedule Enabled" },
+        "name": "scheduleEnabled",
+        "schema": "boolean",
+        "writable": false
+      }
+    ]
+  },
+  {
+    "@context": [
+      "dtmi:iotcentral:context;2",
+      "dtmi:dtdl:context;2"
+    ],
+    "@id": "dtmi:example:ThermoPro_X200:powerModuleComponent;1",
+    "@type": "Interface",
+    "displayName": { "en": "Power Module Component" },
+    "contents": [
+      {
+        "@id": "dtmi:example:ThermoPro_X200:powerModuleComponent:powerConsumption;1",
+        "@type": ["Telemetry", "Power"],
+        "displayName": { "en": "Power Consumption" },
+        "name": "powerConsumption",
+        "schema": "double",
+        "unit": "watt"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:powerModuleComponent:current;1",
+        "@type": ["Telemetry", "Current"],
+        "displayName": { "en": "Current" },
+        "name": "current",
+        "schema": "double",
+        "unit": "ampere"
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:powerModuleComponent:batteryHealth;1",
+        "@type": ["Property", "StringValue"],
+        "displayName": { "en": "Battery Health" },
+        "name": "batteryHealth",
+        "schema": "string",
+        "writable": false
+      },
+      {
+        "@id": "dtmi:example:ThermoPro_X200:powerModuleComponent:powerSource;1",
+        "@type": "Property",
+        "displayName": { "en": "Power Source" },
+        "name": "powerSource",
+        "schema": {
+          "@id": "dtmi:example:ThermoPro_X200:powerModuleComponent:powerSource:schema;1",
+          "@type": "Enum",
+          "valueSchema": "string",
+          "enumValues": [
+            {
+              "@id": "dtmi:example:ThermoPro_X200:powerModuleComponent:powerSource:schema:mains;1",
+              "displayName": { "en": "Mains" },
+              "enumValue": "mains",
+              "name": "mains"
+            },
+            {
+              "@id": "dtmi:example:ThermoPro_X200:powerModuleComponent:powerSource:schema:battery;1",
+              "displayName": { "en": "Battery" },
+              "enumValue": "battery",
+              "name": "battery"
+            }
+          ]
+        },
+        "writable": false
+      }
+    ]
+  }
+]

@@ -1,0 +1,1295 @@
+[
+  {
+    "@context": [
+      "https://www.w3.org/2022/wot/td/v1.1",
+      {
+        "tm": "https://www.w3.org/2022/wot/tm#",
+        "ex": "urn:example:thermopro:"
+      }
+    ],
+    "@type": [
+      "tm:ThingModel",
+      "ex:EnvironmentalMonitor"
+    ],
+    "id": "urn:example:ThermoProX200",
+    "title": "ThermoPro X200",
+    "description": "Environmental monitoring and thermostat device that inherits common connected-asset metadata from the ThermoPro device base model. Thermostat and power electronics are represented as separate component models because the device emits their telemetry and reported properties as named components.",
+    "version": {
+      "model": "2.1.0"
+    },
+    "links": [
+      {
+        "rel": "tm:extends",
+        "href": "urn:example:ThermoPro:ConnectedAsset",
+        "type": "application/tm+json"
+      },
+      {
+        "rel": "tm:submodel",
+        "href": "urn:example:ThermoProX200:thermostat",
+        "type": "application/tm+json",
+        "instanceName": "thermostat"
+      },
+      {
+        "rel": "tm:submodel",
+        "href": "urn:example:ThermoProX200:powerModule",
+        "type": "application/tm+json",
+        "instanceName": "powerModule"
+      }
+    ],
+    "schemaDefinitions": {
+      "DeviceStatus": {
+        "title": "Device status",
+        "description": "Current overall operating condition of the device.",
+        "type": "string",
+        "enum": [
+          "normal",
+          "warning",
+          "critical"
+        ]
+      },
+      "OperatingMode": {
+        "title": "HVAC operating mode",
+        "description": "Current HVAC operating mode.",
+        "type": "string",
+        "enum": [
+          "cooling",
+          "heating",
+          "idle"
+        ]
+      },
+      "GpsLocation": {
+        "title": "Device location",
+        "description": "Reported geographic position and building floor.",
+        "type": "object",
+        "required": [
+          "lat",
+          "lon",
+          "floor"
+        ],
+        "properties": {
+          "lat": {
+            "title": "Latitude",
+            "type": "number",
+            "minimum": 47.6062,
+            "maximum": 47.6162
+          },
+          "lon": {
+            "title": "Longitude",
+            "type": "number",
+            "minimum": -122.3321,
+            "maximum": -122.3221
+          },
+          "floor": {
+            "title": "Floor",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          }
+        }
+      },
+      "MaintenanceSchedule": {
+        "title": "Maintenance schedule",
+        "type": "object",
+        "required": [
+          "intervalDays",
+          "lastServiceDate"
+        ],
+        "properties": {
+          "intervalDays": {
+            "title": "Service interval",
+            "description": "Number of days between scheduled maintenance visits.",
+            "type": "integer",
+            "unit": "d",
+            "const": 90
+          },
+          "lastServiceDate": {
+            "title": "Last service date",
+            "type": "string",
+            "format": "date",
+            "const": "2025-10-05"
+          }
+        }
+      }
+    },
+    "properties": {
+      "temperature": {
+        "title": "Temperature",
+        "description": "Current ambient temperature, reported to two decimal places.",
+        "type": "number",
+        "unit": "Cel",
+        "minimum": 20,
+        "maximum": 30,
+        "multipleOf": 0.01,
+        "readOnly": true,
+        "observable": true
+      },
+      "humidity": {
+        "title": "Relative humidity",
+        "description": "Current relative humidity, reported to two decimal places.",
+        "type": "number",
+        "unit": "%",
+        "minimum": 40,
+        "maximum": 60,
+        "multipleOf": 0.01,
+        "readOnly": true,
+        "observable": true
+      },
+      "pressure": {
+        "title": "Atmospheric pressure",
+        "description": "Current atmospheric pressure, reported to two decimal places.",
+        "type": "number",
+        "unit": "hPa",
+        "minimum": 1010,
+        "maximum": 1020,
+        "multipleOf": 0.01,
+        "readOnly": true,
+        "observable": true
+      },
+      "co2Level": {
+        "title": "Carbon dioxide concentration",
+        "description": "Current carbon dioxide concentration, reported to one decimal place.",
+        "type": "number",
+        "unit": "ppm",
+        "minimum": 400,
+        "maximum": 600,
+        "multipleOf": 0.1,
+        "readOnly": true,
+        "observable": true
+      },
+      "airQualityIndex": {
+        "title": "Air quality index",
+        "description": "Current unitless air-quality index, reported to one decimal place.",
+        "type": "number",
+        "minimum": 30,
+        "maximum": 100,
+        "multipleOf": 0.1,
+        "readOnly": true,
+        "observable": true
+      },
+      "batteryVoltage": {
+        "title": "Battery voltage",
+        "description": "Measured device battery voltage, rounded to three decimal places.",
+        "type": "number",
+        "unit": "V",
+        "minimum": 3.5,
+        "maximum": 4.2,
+        "multipleOf": 0.001,
+        "readOnly": true,
+        "observable": true
+      },
+      "signalStrength": {
+        "title": "Signal strength",
+        "description": "Current received signal strength indication.",
+        "type": "integer",
+        "unit": "dBm",
+        "minimum": -89,
+        "maximum": -50,
+        "readOnly": true,
+        "observable": true
+      },
+      "uptime": {
+        "title": "Uptime",
+        "description": "Elapsed operating time since the last device restart.",
+        "type": "integer",
+        "unit": "s",
+        "minimum": 0,
+        "readOnly": true,
+        "observable": true
+      },
+      "vibration": {
+        "title": "Vibration level",
+        "description": "Current vibration magnitude in device-defined units, reported to three decimal places.",
+        "type": "number",
+        "minimum": 0.1,
+        "maximum": 2.1,
+        "multipleOf": 0.001,
+        "readOnly": true,
+        "observable": true
+      },
+      "noiseLevel": {
+        "title": "Noise level",
+        "description": "Current ambient noise level, reported to one decimal place.",
+        "type": "number",
+        "unit": "dB",
+        "minimum": 30,
+        "maximum": 80,
+        "multipleOf": 0.1,
+        "readOnly": true,
+        "observable": true
+      },
+      "status": {
+        "title": "Status",
+        "tm:ref": "#/schemaDefinitions/DeviceStatus",
+        "readOnly": true,
+        "observable": true
+      },
+      "operatingMode": {
+        "title": "Operating mode",
+        "tm:ref": "#/schemaDefinitions/OperatingMode",
+        "readOnly": true,
+        "observable": true
+      },
+      "alertActive": {
+        "title": "Alert active",
+        "description": "Indicates whether an environmental or device alert is currently active.",
+        "type": "boolean",
+        "readOnly": true,
+        "observable": true
+      },
+      "timestamp": {
+        "title": "Telemetry timestamp",
+        "description": "UTC timestamp assigned when the root telemetry sample is generated.",
+        "type": "string",
+        "format": "date-time",
+        "readOnly": true,
+        "observable": true
+      },
+      "gpsLocation": {
+        "title": "GPS location",
+        "tm:ref": "#/schemaDefinitions/GpsLocation",
+        "readOnly": true,
+        "observable": true
+      },
+      "lastCalibrated": {
+        "title": "Last calibrated",
+        "description": "Reported timestamp of the most recent calibration.",
+        "type": "string",
+        "format": "date-time",
+        "const": "2026-01-15T08:30:00Z",
+        "readOnly": true
+      },
+      "maintenanceSchedule": {
+        "title": "Maintenance schedule",
+        "tm:ref": "#/schemaDefinitions/MaintenanceSchedule",
+        "readOnly": true
+      },
+      "lastKnownTemperature": {
+        "title": "Last known temperature",
+        "description": "Most recently recorded ambient temperature.",
+        "type": "number",
+        "unit": "Cel",
+        "minimum": 20,
+        "maximum": 30,
+        "multipleOf": 0.01,
+        "readOnly": true,
+        "observable": true
+      },
+      "lastKnownStatus": {
+        "title": "Last known status",
+        "description": "Most recently recorded overall device status.",
+        "tm:ref": "#/schemaDefinitions/DeviceStatus",
+        "readOnly": true,
+        "observable": true
+      },
+      "lastReportedAt": {
+        "title": "Last reported-property update",
+        "description": "UTC timestamp of the most recent device-state report.",
+        "type": "string",
+        "format": "date-time",
+        "readOnly": true,
+        "observable": true
+      },
+      "totalMessagesSent": {
+        "title": "Messages sent",
+        "description": "Number of primary telemetry messages successfully transmitted by the device.",
+        "type": "integer",
+        "minimum": 0,
+        "readOnly": true,
+        "observable": true
+      },
+      "comfortProfile": {
+        "@type": [
+          "ex:ComfortProfile",
+          "ex:EnvironmentalPolicy"
+        ],
+        "title": "Environmental comfort profile",
+        "description": "Active environmental policy containing target ranges, weekly scheduling, notification preferences, and a signed calibration package.",
+        "type": "object",
+        "readOnly": true,
+        "observable": true,
+        "required": [
+          "profileId",
+          "revision",
+          "active",
+          "controlMode",
+          "targets",
+          "weeklySchedule"
+        ],
+        "properties": {
+          "profileId": {
+            "title": "Profile identifier",
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "title": "Profile revision",
+            "type": "integer",
+            "minimum": 1
+          },
+          "active": {
+            "title": "Active",
+            "type": "boolean",
+            "default": true
+          },
+          "controlMode": {
+            "title": "Control mode",
+            "type": "string",
+            "enum": [
+              "comfort",
+              "energy-saver",
+              "air-quality-priority",
+              "unoccupied"
+            ],
+            "default": "comfort"
+          },
+          "targets": {
+            "title": "Environmental targets",
+            "type": "object",
+            "required": [
+              "temperature",
+              "humidity",
+              "co2Limit"
+            ],
+            "properties": {
+              "temperature": {
+                "type": "object",
+                "required": [
+                  "minimum",
+                  "preferred",
+                  "maximum"
+                ],
+                "properties": {
+                  "minimum": {
+                    "type": "number",
+                    "unit": "Cel",
+                    "minimum": 10,
+                    "maximum": 35,
+                    "multipleOf": 0.1
+                  },
+                  "preferred": {
+                    "type": "number",
+                    "unit": "Cel",
+                    "minimum": 10,
+                    "maximum": 35,
+                    "multipleOf": 0.1
+                  },
+                  "maximum": {
+                    "type": "number",
+                    "unit": "Cel",
+                    "minimum": 10,
+                    "maximum": 35,
+                    "multipleOf": 0.1
+                  }
+                }
+              },
+              "humidity": {
+                "type": "object",
+                "required": [
+                  "minimum",
+                  "maximum"
+                ],
+                "properties": {
+                  "minimum": {
+                    "type": "number",
+                    "unit": "%",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "multipleOf": 0.1
+                  },
+                  "maximum": {
+                    "type": "number",
+                    "unit": "%",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "multipleOf": 0.1
+                  }
+                }
+              },
+              "co2Limit": {
+                "type": "integer",
+                "unit": "ppm",
+                "minimum": 400,
+                "maximum": 5000,
+                "multipleOf": 10
+              }
+            }
+          },
+          "weeklySchedule": {
+            "title": "Weekly schedule",
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 14,
+            "items": {
+              "type": "object",
+              "required": [
+                "day",
+                "startTime",
+                "endTime",
+                "target"
+              ],
+              "properties": {
+                "day": {
+                  "type": "string",
+                  "enum": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                    "sunday"
+                  ]
+                },
+                "startTime": {
+                  "type": "string",
+                  "format": "time"
+                },
+                "endTime": {
+                  "type": "string",
+                  "format": "time"
+                },
+                "target": {
+                  "oneOf": [
+                    {
+                      "type": "number",
+                      "unit": "Cel",
+                      "minimum": 10,
+                      "maximum": 35,
+                      "multipleOf": 0.1
+                    },
+                    {
+                      "type": "string",
+                      "const": "inherit"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "notificationChannels": {
+            "title": "Notification channels",
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+              "type": "string",
+              "enum": [
+                "local-display",
+                "mobile-push",
+                "email",
+                "building-management-system"
+              ]
+            }
+          },
+          "calibrationPackage": {
+            "title": "Signed calibration package",
+            "type": "string",
+            "contentEncoding": "base64",
+            "contentMediaType": "application/cose"
+          }
+        }
+      },
+      "diagnosticSnapshot": {
+        "@type": [
+          "ex:DiagnosticSnapshot",
+          "ex:ServiceRecord"
+        ],
+        "title": "Diagnostic snapshot",
+        "titles": {
+          "en": "Diagnostic snapshot",
+          "de": "Diagnosemomentaufnahme"
+        },
+        "description": "Latest diagnostic snapshot. A null value indicates that no snapshot is currently available.",
+        "descriptions": {
+          "en": "Latest diagnostic snapshot, when available.",
+          "fr": "Dernier instantane de diagnostic, lorsqu'il est disponible."
+        },
+        "type": "null",
+        "enum": [
+          null
+        ],
+        "const": null,
+        "default": null,
+        "readOnly": true,
+        "observable": false
+      },
+      "diagnosticArchive": {
+        "@type": "ex:DiagnosticArchive",
+        "title": "Diagnostic archive",
+        "description": "Encoded diagnostic archive. A null value indicates that no archive has been generated.",
+        "type": "null",
+        "contentEncoding": "base64",
+        "contentMediaType": "application/vnd.thermopro.diagnostic+json",
+        "const": null,
+        "readOnly": true
+      }
+    },
+    "actions": {
+      "rebootDevice": {
+        "title": "Reboot device",
+        "description": "Schedules a controlled device restart.",
+        "safe": false,
+        "idempotent": true,
+        "synchronous": false,
+        "input": {
+          "type": "object",
+          "properties": {
+            "delaySeconds": {
+              "title": "Reboot delay",
+              "type": "integer",
+              "unit": "s",
+              "minimum": 0,
+              "maximum": 300,
+              "default": 0
+            },
+            "reason": {
+              "title": "Reason",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          }
+        },
+        "output": {
+          "type": "object",
+          "required": [
+            "accepted",
+            "restartId"
+          ],
+          "properties": {
+            "accepted": {
+              "type": "boolean"
+            },
+            "restartId": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "runDiagnostics": {
+        "title": "Run diagnostics",
+        "description": "Runs a selectable set of device and component health checks.",
+        "safe": true,
+        "idempotent": true,
+        "synchronous": true,
+        "input": {
+          "type": "object",
+          "required": [
+            "depth"
+          ],
+          "properties": {
+            "depth": {
+              "type": "string",
+              "enum": [
+                "quick",
+                "standard",
+                "full"
+              ],
+              "default": "standard"
+            },
+            "includeComponents": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "output": {
+          "type": "object",
+          "required": [
+            "result",
+            "durationSeconds",
+            "checks"
+          ],
+          "properties": {
+            "result": {
+              "type": "string",
+              "enum": [
+                "passed",
+                "warnings",
+                "failed"
+              ]
+            },
+            "durationSeconds": {
+              "type": "integer",
+              "unit": "s",
+              "minimum": 0,
+              "maximum": 900
+            },
+            "checks": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 32,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            }
+          }
+        }
+      },
+      "configureReporting": {
+        "title": "Configure reporting intervals",
+        "description": "Updates the telemetry and device-state reporting intervals.",
+        "safe": false,
+        "idempotent": true,
+        "synchronous": true,
+        "input": {
+          "type": "object",
+          "required": [
+            "telemetryIntervalMs",
+            "propertyIntervalMs"
+          ],
+          "properties": {
+            "telemetryIntervalMs": {
+              "type": "integer",
+              "unit": "ms",
+              "minimum": 1000,
+              "maximum": 86400000,
+              "default": 60000
+            },
+            "propertyIntervalMs": {
+              "type": "integer",
+              "unit": "ms",
+              "minimum": 1000,
+              "maximum": 86400000,
+              "default": 120000
+            }
+          }
+        },
+        "output": {
+          "type": "boolean"
+        }
+      }
+    },
+    "events": {
+      "predictiveMaintenanceAlert": {
+        "@type": [
+          "ex:PredictiveMaintenanceAlert",
+          "ex:ConditionBasedMaintenanceEvent"
+        ],
+        "title": "Predictive maintenance alert",
+        "description": "Raised when condition monitoring identifies a developing issue that should be inspected before normal service is affected.",
+        "subscription": {
+          "type": "object",
+          "properties": {
+            "minimumSeverity": {
+              "type": "string",
+              "enum": [
+                "advisory",
+                "warning",
+                "critical"
+              ],
+              "default": "warning"
+            },
+            "components": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 6,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "environmental-sensor",
+                  "thermostat",
+                  "fan",
+                  "compressor",
+                  "battery",
+                  "power-supply"
+                ]
+              }
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "alertId",
+            "detectedAt",
+            "severity",
+            "component",
+            "confidence",
+            "indicators",
+            "recommendation"
+          ],
+          "properties": {
+            "alertId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "detectedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "advisory",
+                "warning",
+                "critical"
+              ]
+            },
+            "component": {
+              "type": "string",
+              "enum": [
+                "environmental-sensor",
+                "thermostat",
+                "fan",
+                "compressor",
+                "battery",
+                "power-supply"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "unit": "%",
+              "minimum": 0,
+              "maximum": 100,
+              "multipleOf": 0.1
+            },
+            "indicators": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "observedValue",
+                  "trend"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
+                  },
+                  "observedValue": {
+                    "oneOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  },
+                  "trend": {
+                    "type": "string",
+                    "enum": [
+                      "stable",
+                      "increasing",
+                      "decreasing",
+                      "intermittent"
+                    ]
+                  }
+                }
+              }
+            },
+            "recommendation": {
+              "type": "object",
+              "required": [
+                "action",
+                "priority",
+                "serviceWithinHours"
+              ],
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 240
+                },
+                "priority": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "serviceWithinHours": {
+                  "type": "integer",
+                  "unit": "h",
+                  "minimum": 1,
+                  "maximum": 8760
+                },
+                "parts": {
+                  "type": "array",
+                  "maxItems": 12,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[A-Z0-9-]{3,32}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "dataResponse": {
+          "type": "object",
+          "required": [
+            "acknowledged",
+            "disposition"
+          ],
+          "properties": {
+            "acknowledged": {
+              "type": "boolean"
+            },
+            "disposition": {
+              "type": "string",
+              "enum": [
+                "monitor",
+                "schedule-service",
+                "dispatch-technician",
+                "replace-component"
+              ]
+            },
+            "workOrderId": {
+              "type": "string",
+              "pattern": "^WO-[0-9]{8,12}$"
+            }
+          }
+        },
+        "cancellation": {
+          "type": "object",
+          "required": [
+            "reason",
+            "requestedBy"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "resolved",
+                "duplicate",
+                "false-positive",
+                "device-retired"
+              ]
+            },
+            "requestedBy": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 128
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "@context": [
+      "https://www.w3.org/2022/wot/td/v1.1",
+      {
+        "tm": "https://www.w3.org/2022/wot/tm#",
+        "ex": "urn:example:thermopro:"
+      }
+    ],
+    "@type": [
+      "tm:ThingModel",
+      "ex:ConnectedAssetBase"
+    ],
+    "id": "urn:example:ThermoPro:ConnectedAsset",
+    "title": "ThermoPro Connected Asset Base Model",
+    "description": "Reusable base model for identity, ownership, firmware, installation, connectivity, classification, warranty, and asset-tag properties shared by connected ThermoPro devices.",
+    "version": {
+      "model": "1.0.0"
+    },
+    "properties": {
+      "customerName": {
+        "title": "Customer name",
+        "description": "Customer associated with the asset.",
+        "type": "string",
+        "const": "Contoso",
+        "readOnly": true
+      },
+      "firmwareVersion": {
+        "title": "Firmware version",
+        "description": "Installed device firmware version.",
+        "type": "string",
+        "pattern": "^1\\.[0-9]+\\.0$",
+        "minLength": 5,
+        "maxLength": 16,
+        "readOnly": true,
+        "observable": true
+      },
+      "location": {
+        "title": "Installation location",
+        "description": "Reported building and floor assignment.",
+        "type": "string",
+        "pattern": "^Building A, Floor [1-3]$",
+        "readOnly": true,
+        "observable": true
+      },
+      "serialNumber": {
+        "title": "Serial number",
+        "description": "Manufacturer-assigned serial number.",
+        "type": "string",
+        "const": "SN-2024-00421",
+        "readOnly": true
+      },
+      "isOnline": {
+        "title": "Online status",
+        "description": "Indicates whether the device is connected to its cloud service.",
+        "type": "boolean",
+        "const": true,
+        "readOnly": true
+      },
+      "installYear": {
+        "title": "Installation year",
+        "type": "integer",
+        "const": 2024,
+        "readOnly": true
+      },
+      "tags": {
+        "title": "Asset tags",
+        "description": "Reported classifications attached to the device.",
+        "type": "array",
+        "minItems": 3,
+        "maxItems": 3,
+        "items": {
+          "type": "string",
+          "enum": [
+            "hvac",
+            "zone-a",
+            "monitored"
+          ]
+        },
+        "readOnly": true
+      },
+      "warrantyExpiry": {
+        "title": "Warranty expiry",
+        "type": "string",
+        "format": "date-time",
+        "const": "2027-01-15T00:00:00Z",
+        "readOnly": true
+      },
+      "assetTag": {
+        "title": "Asset tag",
+        "description": "Stable base asset tag with a revision suffix on recurring reported-property updates.",
+        "type": "string",
+        "pattern": "^ASSET-00421(?:-r[1-9][0-9]*)?$",
+        "minLength": 11,
+        "maxLength": 32,
+        "readOnly": true,
+        "observable": true
+      }
+    }
+  },
+  {
+    "@context": [
+      "https://www.w3.org/2022/wot/td/v1.1",
+      {
+        "tm": "https://www.w3.org/2022/wot/tm#",
+        "ex": "urn:example:thermopro:"
+      }
+    ],
+    "@type": [
+      "tm:ThingModel",
+      "ex:ThermostatComponent"
+    ],
+    "id": "urn:example:ThermoProX200:thermostat",
+    "title": "ThermoPro X200 Thermostat Component",
+    "description": "Integrated thermostat component that reports target temperature, fan speed, compressor load, scheduling state, and energy-saving preferences.",
+    "version": {
+      "model": "1.0.0"
+    },
+    "properties": {
+      "targetTemperature": {
+        "title": "Target temperature",
+        "description": "Current target temperature, reported to two decimal places.",
+        "type": "number",
+        "unit": "Cel",
+        "minimum": 21,
+        "maximum": 24,
+        "multipleOf": 0.01,
+        "readOnly": true,
+        "observable": true
+      },
+      "fanSpeed": {
+        "title": "Fan speed",
+        "description": "Current fan output expressed as a whole-number percentage.",
+        "type": "integer",
+        "unit": "%",
+        "minimum": 0,
+        "maximum": 100,
+        "readOnly": true,
+        "observable": true
+      },
+      "compressorLoad": {
+        "title": "Compressor load",
+        "description": "Current compressor utilization, reported to one decimal place.",
+        "type": "number",
+        "unit": "%",
+        "minimum": 0,
+        "maximum": 100,
+        "multipleOf": 0.1,
+        "readOnly": true,
+        "observable": true
+      },
+      "setpoint": {
+        "title": "Configured setpoint",
+        "description": "Reported thermostat setpoint. The initial value is 22 degrees Celsius; recurring updates range from 20 to 24.",
+        "type": "number",
+        "unit": "Cel",
+        "minimum": 20,
+        "maximum": 24,
+        "multipleOf": 0.1,
+        "default": 22,
+        "readOnly": true,
+        "observable": true
+      },
+      "scheduleEnabled": {
+        "title": "Schedule enabled",
+        "description": "Indicates whether scheduled temperature control is enabled.",
+        "type": "boolean",
+        "readOnly": true,
+        "observable": true
+      },
+      "ecoMode": {
+        "title": "Eco mode",
+        "description": "Indicates whether energy-saving operation is enabled.",
+        "type": "boolean",
+        "readOnly": true,
+        "observable": true
+      }
+    },
+    "actions": {
+      "applySetpoint": {
+        "title": "Apply thermostat setpoint",
+        "description": "Applies a new thermostat temperature setpoint.",
+        "safe": false,
+        "idempotent": true,
+        "synchronous": true,
+        "input": {
+          "type": "number",
+          "unit": "Cel",
+          "minimum": 16,
+          "maximum": 30,
+          "multipleOf": 0.1
+        },
+        "output": {
+          "type": "object",
+          "required": [
+            "previous",
+            "current"
+          ],
+          "properties": {
+            "previous": {
+              "type": "number",
+              "unit": "Cel",
+              "minimum": 16,
+              "maximum": 30,
+              "multipleOf": 0.1
+            },
+            "current": {
+              "type": "number",
+              "unit": "Cel",
+              "minimum": 16,
+              "maximum": 30,
+              "multipleOf": 0.1
+            }
+          }
+        }
+      },
+      "setTemporaryOverride": {
+        "title": "Set temporary override",
+        "description": "Applies a temporary operating-mode override for a bounded period.",
+        "safe": false,
+        "idempotent": false,
+        "synchronous": true,
+        "input": {
+          "type": "object",
+          "required": [
+            "mode",
+            "durationMinutes"
+          ],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "cooling",
+                "heating",
+                "idle"
+              ]
+            },
+            "durationMinutes": {
+              "type": "integer",
+              "unit": "min",
+              "minimum": 5,
+              "maximum": 1440,
+              "multipleOf": 5
+            },
+            "targetTemperature": {
+              "type": "number",
+              "unit": "Cel",
+              "minimum": 16,
+              "maximum": 30,
+              "multipleOf": 0.1
+            }
+          }
+        },
+        "output": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  {
+    "@context": [
+      "https://www.w3.org/2022/wot/td/v1.1",
+      {
+        "tm": "https://www.w3.org/2022/wot/tm#",
+        "ex": "urn:example:thermopro:"
+      }
+    ],
+    "@type": [
+      "tm:ThingModel",
+      "ex:PowerModuleComponent"
+    ],
+    "id": "urn:example:ThermoProX200:powerModule",
+    "title": "ThermoPro X200 Power Module",
+    "description": "Integrated power module that reports electrical measurements, battery condition, active power source, and accumulated charge cycles.",
+    "version": {
+      "model": "1.0.0"
+    },
+    "properties": {
+      "powerConsumption": {
+        "title": "Power consumption",
+        "description": "Current power consumption, reported to two decimal places.",
+        "type": "number",
+        "unit": "W",
+        "minimum": 50,
+        "maximum": 150,
+        "multipleOf": 0.01,
+        "readOnly": true,
+        "observable": true
+      },
+      "current": {
+        "title": "Electrical current",
+        "description": "Current electrical draw, reported to three decimal places.",
+        "type": "number",
+        "unit": "A",
+        "minimum": 0.2,
+        "maximum": 1,
+        "multipleOf": 0.001,
+        "readOnly": true,
+        "observable": true
+      },
+      "voltageRipple": {
+        "title": "Voltage ripple",
+        "description": "Current voltage ripple, reported to four decimal places.",
+        "type": "number",
+        "unit": "V",
+        "minimum": 0,
+        "maximum": 0.5,
+        "multipleOf": 0.0001,
+        "readOnly": true,
+        "observable": true
+      },
+      "batteryHealth": {
+        "title": "Battery health",
+        "description": "Reported battery condition.",
+        "type": "string",
+        "enum": [
+          "good",
+          "fair",
+          "poor"
+        ],
+        "default": "good",
+        "readOnly": true,
+        "observable": true
+      },
+      "powerSource": {
+        "title": "Power source",
+        "description": "Reported active source. The initial value is mains; recurring updates may report mains or battery.",
+        "type": "string",
+        "enum": [
+          "mains",
+          "battery"
+        ],
+        "default": "mains",
+        "readOnly": true,
+        "observable": true
+      },
+      "chargeCycles": {
+        "title": "Charge cycles",
+        "description": "Accumulated battery charge-cycle count.",
+        "type": "integer",
+        "minimum": 12,
+        "readOnly": true,
+        "observable": true
+      }
+    },
+    "actions": {
+      "runBatteryTest": {
+        "title": "Run battery test",
+        "description": "Runs a battery health test under a configurable electrical load.",
+        "safe": true,
+        "idempotent": true,
+        "synchronous": false,
+        "input": {
+          "type": "object",
+          "properties": {
+            "loadPercent": {
+              "type": "integer",
+              "unit": "%",
+              "minimum": 10,
+              "maximum": 100,
+              "multipleOf": 10,
+              "default": 50
+            }
+          }
+        },
+        "output": {
+          "type": "object",
+          "required": [
+            "health",
+            "measuredVoltage",
+            "passed"
+          ],
+          "properties": {
+            "health": {
+              "type": "string",
+              "enum": [
+                "good",
+                "fair",
+                "poor"
+              ]
+            },
+            "measuredVoltage": {
+              "type": "number",
+              "unit": "V",
+              "minimum": 0,
+              "maximum": 5,
+              "multipleOf": 0.001
+            },
+            "passed": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "selectPowerSource": {
+        "title": "Select power source",
+        "description": "Selects the preferred active power source.",
+        "safe": false,
+        "idempotent": true,
+        "synchronous": true,
+        "input": {
+          "type": "string",
+          "enum": [
+            "mains",
+            "battery"
+          ]
+        },
+        "output": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+]
