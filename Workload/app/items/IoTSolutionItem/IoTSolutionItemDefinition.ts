@@ -59,7 +59,7 @@ export interface IoTSolutionItemDefinition {
     dashboardName: string;
   };
 
-  /** Uploaded device model (DTDL) */
+  /** Legacy item payload, accepted for reading older items only. */
   deviceModel?: {
     fileName: string;
     modelName: string;
@@ -86,4 +86,10 @@ export interface IoTSolutionItemDefinition {
     databaseName: string;
     tableName: string;
   };
+}
+
+export function definitionWithoutModel(definition: IoTSolutionItemDefinition): IoTSolutionItemDefinition {
+  const result = { ...definition };
+  delete result.deviceModel;
+  return result;
 }

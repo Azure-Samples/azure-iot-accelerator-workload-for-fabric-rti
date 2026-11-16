@@ -22,6 +22,7 @@ import { WizardStepProps } from "../../../components/Wizard";
 import { FabricPlatformAPIClient } from "../../../clients/FabricPlatformAPIClient";
 import { Item } from "../../../clients/FabricPlatformTypes";
 import { getEventhouseItem } from "../eventhouseClient";
+import { callNavigationOpenInNewBrowserTab } from "../../../controller/NavigationController";
 import "../IoTSolutionItem.scss";
 
 const FABRIC_ITEM_READ_SCOPE = "https://api.fabric.microsoft.com/Item.Read.All";
@@ -311,7 +312,7 @@ export function EventhouseStep({
   return (
     <div className="iot-solution-step">
       <h2 className="iot-solution-step-title">
-        Select Eventhouse &amp; Database
+        Select Eventhouse &amp; database
       </h2>
       <Text className="iot-solution-step-description">
         Choose an existing Eventhouse and KQL Database in this workspace. The Eventhouse will store telemetry,
@@ -326,6 +327,11 @@ export function EventhouseStep({
           &quot;+ New&quot; menu, then return to this page and select Refresh.{" "}
           <a
             href="https://learn.microsoft.com/en-us/fabric/real-time-intelligence/create-eventhouse"
+            onClick={(event) => {
+              event.preventDefault();
+              void callNavigationOpenInNewBrowserTab(workloadClient,
+                "https://learn.microsoft.com/en-us/fabric/real-time-intelligence/create-eventhouse");
+            }}
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: "var(--colorBrandForegroundLink)" }}
@@ -398,7 +404,7 @@ export function EventhouseStep({
           <div className="iot-solution-field">
             <div className="iot-solution-field-header">
               <Label className="iot-solution-field-label" required htmlFor="database-select">
-                KQL Database
+                KQL database
               </Label>
               <Button
                 appearance="subtle"

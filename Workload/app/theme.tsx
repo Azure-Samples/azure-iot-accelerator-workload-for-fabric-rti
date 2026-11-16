@@ -1,26 +1,13 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-import { createLightTheme } from "@fluentui/react-components";
+import { createDarkTheme, createLightTheme, type Theme } from "@fluentui/react-components";
+import type { ThemeConfiguration } from "@ms-fabric/workload-client";
 
-const brandFabric = {
-    10: `#001919`,
-    20: `#012826`,
-    30: `#01322E`,
-    40: `#033F38`,//button pressed ;
-    50: `#054D43`,
-    60: `#0A5C50`,// link click
-    70: `#0C695A`,// tab/button click
-    80: `#117865`,//tab and button
-    90: `#1F937E`,
-    100: `#2AAC94`,
-    110: `#3ABB9F`,
-    120: `#52C7AA`,
-    130: `#78D3B9`,
-    140: `#9EE0CB`,
-    150: `#C0ECDD`,
-    160: `#E3F7Ef`,
-};
-
-const fabricLightTheme = createLightTheme(brandFabric);
-export { fabricLightTheme };
+export function fabricThemeFromHost(host: ThemeConfiguration): Theme {
+    const base = host.colorScheme === "dark" ? createDarkTheme(host.accentColors) : createLightTheme(host.accentColors);
+    const overrides = Object.fromEntries(Object.keys(base)
+        .filter(key => host.tokens[key] !== undefined)
+        .map(key => [key, String(host.tokens[key])]));
+    return { ...base, ...overrides };
+}

@@ -32,7 +32,9 @@ export function IoTSolutionItemRibbon(props: IoTSolutionItemRibbonProps) {
 
   const settingsAction = useSettingsAction(props.openSettingsCallback);
 
-  const homeToolbarActions: RibbonAction[] = [saveAction, settingsAction];
+  // Modeling owns its completion flow; ribbon Save must not imply that ephemeral selections are retained.
+  const homeToolbarActions: RibbonAction[] = viewContext.currentView === "model-wizard"
+    ? [settingsAction] : [saveAction, settingsAction];
 
   return (
     <Ribbon

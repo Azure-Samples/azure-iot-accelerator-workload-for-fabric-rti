@@ -4,29 +4,17 @@
 /**
  * Generates a Fabric Real-Time Dashboard definition JSON from inspected
  * telemetry and property fields. The output follows the Kusto dashboard
- * schema (version 69) and can be posted to the Fabric REST API.
+ * schema (version 88) and can be posted to the Fabric REST API.
  */
 
-import { RAW_EVENT_PROJECTION_KQL } from "./RawEventKql";
+import { dashboardRawQuery, type DashboardField } from "./DashboardData.ts";
+import { kqlString } from "./HubModeling.ts";
+import { quoteKqlIdentifier } from "./ModelAuthoring.ts";
+export type { DashboardField } from "./DashboardData.ts";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export interface DashboardField {
-  key: string;
-  isNumeric?: boolean;
-  included: boolean;
-  /**
-   * Component name this field belongs to (undefined/empty for root-interface fields).
-   * Component telemetry is identified by cloudEvents_iothubdtsubject in user_headers, and
-   * component reported properties are nested under the component key. `key` is the flattened
-   * display/column name (`<component>_<leaf>`); `component` + `leaf` recover the raw wire shape.
-   */
-  component?: string;
-  /** Raw payload key for this field (the unprefixed leaf name). Defaults to `key` when absent. */
-  leaf?: string;
-}
 
 export interface DashboardGenerationParams {
   title: string;
@@ -83,29 +71,16 @@ const CHART_COLORS = [
 // Query builders
 // ---------------------------------------------------------------------------
 
-// Component telemetry has a component name; root telemetry has an empty component.
-// Guarding on the component ensures a field reads only its own
-// source and prevents a root field from matching a component message (or vice versa) when they
-// share a leaf name.
-function componentFilter(component: string): string {
-  return `| where component == '${component}'`;
-}
-
 function buildTimeSeriesTelemetryQuery(table: string, field: DashboardField): string {
   const leaf = field.leaf ?? field.key;
   const component = field.component ?? "";
   return [
-    table,
-    "| where ingestion_time() >= ago(30d)",
-    RAW_EVENT_PROJECTION_KQL,
-    "| where deviceId == _deviceId",
-    componentFilter(component),
-    "| where enqueuedTime between (['_startTime'] .. ['_endTime'])",
-    "| extend telemetry = data",
-    `| extend Value = todecimal(telemetry['${leaf}'])`,
+    dashboardRawQuery(table, "telemetry", component),
+    "| where event_time between (['_startTime'] .. ['_endTime'])",
+    `| extend Value = todecimal(data.payload.value[${kqlString(leaf)}])`,
     "| where isnotempty(Value)",
-    "| project enqueuedTime, Value",
-    "| order by enqueuedTime asc",
+    "| project event_time, Value",
+    "| order by event_time asc",
   ].join("\n");
 }
 
@@ -113,17 +88,12 @@ function buildNonTimeSeriesTelemetryQuery(table: string, field: DashboardField):
   const leaf = field.leaf ?? field.key;
   const component = field.component ?? "";
   return [
-    table,
-    "| where ingestion_time() >= ago(30d)",
-    RAW_EVENT_PROJECTION_KQL,
-    "| where deviceId == _deviceId",
-    componentFilter(component),
-    "| where enqueuedTime between (['_startTime'] .. ['_endTime'])",
-    "| extend telemetry = data",
-    `| extend Value = telemetry['${leaf}']`,
+    dashboardRawQuery(table, "telemetry", component),
+    "| where event_time between (['_startTime'] .. ['_endTime'])",
+    `| extend Value = data.payload.value[${kqlString(leaf)}]`,
     "| where isnotempty(Value)",
-    "| project Time=enqueuedTime, Value",
-    "| order by Time desc",
+    "| project event_time, Value",
+    "| order by event_time desc",
     "| limit 10",
   ].join("\n");
 }
@@ -133,27 +103,26 @@ function buildPropertyQuery(table: string, field: DashboardField): string {
   const component = field.component ?? "";
   // Component reported properties are nested under the component key (with a __t="c" marker);
   // root properties sit directly on properties.reported.
-  const valueExpr = component ? `rp['${component}']['${leaf}']` : `rp['${leaf}']`;
+  const componentExpr = `rp[${kqlString(component)}]`;
+  const valueExpr = component ? `${componentExpr}[${kqlString(leaf)}]` : `rp[${kqlString(leaf)}]`;
   return [
-    table,
-    "| where ingestion_time() >= ago(30d)",
-    RAW_EVENT_PROJECTION_KQL,
-    "| where deviceId == _deviceId",
-    "| extend rp = data.properties.reported",
+    dashboardRawQuery(table, "twin"),
+    "| extend rp = data.payload.value.properties.reported",
+    ...(component ? [`| where tostring(${componentExpr}["__t"]) == "c"`] : []),
     `| extend Value = ${valueExpr}`,
+    ...(!component ? ['| where tostring(Value["__t"]) != "c"'] : []),
     "| where isnotempty(Value)",
-    "| project Time=enqueuedTime, Value",
-    "| order by Time desc",
+    "| project event_time, Value",
+    "| order by event_time desc",
     "| limit 1",
   ].join("\n");
 }
 
 function buildDeviceListQuery(table: string): string {
   return [
-    table,
-    "| where ingestion_time() >= ago(30d)",
-    RAW_EVENT_PROJECTION_KQL,
-    "| distinct deviceId",
+    quoteKqlIdentifier(table),
+    "| where ingestion_time() between (['_startTime'] .. ['_endTime'])",
+    "| distinct deviceId = tostring(user_headers.cloudEvents_subject)",
   ].join("\n");
 }
 
@@ -175,7 +144,7 @@ const LINE_CHART_OPTIONS: Record<string, unknown> = {
   hideLegend: false,
   legendLocation: "bottom",
   xColumnTitle: "",
-  xColumn: "enqueuedTime",
+  xColumn: "event_time",
   yColumns: ["Value"],
   seriesColumns: null as null,
   xAxisScale: "linear",
@@ -236,6 +205,7 @@ export function generateDashboardDefinition(params: DashboardGenerationParams): 
     clusterUri: queryServiceUri,
     name: "IoT",
     id: dataSourceId,
+    databaseArtifactId: databaseId,
     database: databaseId,
     workspace: "00000000-0000-0000-0000-000000000000",
     scopeId: "kusto-trident",
@@ -247,7 +217,7 @@ export function generateDashboardDefinition(params: DashboardGenerationParams): 
     dataSource: { kind: "inline", dataSourceId },
     text: buildDeviceListQuery(telemetryTable),
     id: deviceListQueryId,
-    usedVariables: [] as string[],
+    usedVariables: ["_endTime", "_startTime"],
   };
 
   // Parameters
@@ -279,11 +249,36 @@ export function generateDashboardDefinition(params: DashboardGenerationParams): 
     showOnPages: { kind: "all" },
   };
 
-  const tiles: object[] = [];
+  const tiles: object[] = [{
+    id: uuid(),
+    title: "",
+    hideTitle: true,
+    visualType: "designTile",
+    pageId,
+    layout: { x: 0, y: 0, width: 18, height: 3 },
+    visualOptions: {
+      designTile__kind: "textBox",
+      textBox__html: '<div style="font-size: 24px;">Device dashboard</div><div>(Choose a device ID above to get started)</div>',
+    },
+  }];
   const queries: object[] = [deviceListQuery];
-  let currentY = 0;
+  let currentY = 3;
+
+  function addSectionDivider(label: string): void {
+    tiles.push({
+      id: uuid(),
+      title: "",
+      hideTitle: true,
+      visualType: "designTile",
+      pageId,
+      layout: { x: 0, y: currentY, width: 24, height: 1 },
+      visualOptions: { designTile__kind: "divider", divider__label: label },
+    });
+    currentY += 1;
+  }
 
   // --- Time-series telemetry (line charts, 2 per row, 9×7) ---
+  if (included.timeSeries.length > 0) addSectionDivider("Time-series telemetry");
   for (let i = 0; i < included.timeSeries.length; i++) {
     const field = included.timeSeries[i];
     const queryId = uuid();
@@ -315,6 +310,7 @@ export function generateDashboardDefinition(params: DashboardGenerationParams): 
   if (included.timeSeries.length > 0) currentY += 7;
 
   // --- Non-time-series telemetry (tables, 2 per row, 9×7) ---
+  if (included.nonTimeSeries.length > 0) addSectionDivider("Non-time-series telemetry (last 10 values)");
   for (let i = 0; i < included.nonTimeSeries.length; i++) {
     const field = included.nonTimeSeries[i];
     const queryId = uuid();
@@ -341,19 +337,20 @@ export function generateDashboardDefinition(params: DashboardGenerationParams): 
   }
   if (included.nonTimeSeries.length > 0) currentY += 7;
 
-  // --- Properties (cards, 6 per row, 3×3) ---
+  // --- Properties (cards, 3 per row, 6×3) ---
+  if (included.properties.length > 0) addSectionDivider("Device properties (last known value)");
   for (let i = 0; i < included.properties.length; i++) {
     const field = included.properties[i];
     const queryId = uuid();
-    const col = i % 6;
-    const x = col * 3;
+    const col = i % 3;
+    const x = col * 6;
     if (col === 0 && i > 0) currentY += 3;
 
     queries.push({
       dataSource: { kind: "inline", dataSourceId },
       text: buildPropertyQuery(propertiesTable, field),
       id: queryId,
-      usedVariables: ["_deviceId"],
+      usedVariables: ["_deviceId", "_endTime", "_startTime"],
     });
 
     tiles.push({
@@ -361,24 +358,25 @@ export function generateDashboardDefinition(params: DashboardGenerationParams): 
       title: field.key,
       visualType: "card",
       pageId,
-      layout: { x, y: currentY, width: 3, height: 3 },
+      layout: { x, y: currentY, width: 6, height: 3 },
       queryRef: { kind: "query", queryId },
       visualOptions: { ...CARD_OPTIONS },
     });
   }
 
   return {
-    $schema: "https://pbiadx.powerbi.com/static/d/schema/69/dashboard.json",
+    $schema: "https://dataexplorer.azure.com/static/d/schema/88/dashboard.json",
     id: dashboardId,
     eTag: `"${uuid()}"`,
     title,
-    schema_version: 69,
+    schema_version: 88,
     tiles,
     baseQueries: [],
     parameters: [timeRangeParam, deviceIdParam],
     dataSources: [dataSource],
     pages: [{ name: "Page 1", id: pageId }],
     queries,
+    embeddedApps: [],
   };
 }
 

@@ -3,6 +3,7 @@
 
 import React from "react";
 import { Button } from "@fluentui/react-components";
+import { ArrowRight20Regular } from "@fluentui/react-icons";
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { WizardStepProps } from "../../../components/Wizard";
 import {
@@ -146,17 +147,17 @@ export function ActivatorSummaryStep({
               Telemetry enriched with device state
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-architecture-node">
             <span className="iot-solution-flow-node-title">Secure KQL connection</span>
             <span className="iot-solution-flow-node-detail">Workspace identity</span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-architecture-node">
             <span className="iot-solution-flow-node-title">Eventstream</span>
             <span className="iot-solution-flow-node-detail">Continuous event delivery</span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-architecture-node">
             <span className="iot-solution-flow-node-title">Activator</span>
             <span className="iot-solution-flow-node-detail">Conditions and automated responses</span>

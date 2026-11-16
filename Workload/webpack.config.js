@@ -50,12 +50,17 @@ module.exports = {
                     from: './app/web.config',
                     to: './web.config',
                 },
+                {
+                    from: './app/items/IoTSolutionItem/schemas/W3C-LICENSE.txt',
+                    to: './third-party-notices/W3C-LICENSE.txt',
+                },
             ]
         }),
     ],
     resolve: {
         modules: [__dirname, "node_modules"],
         extensions: [".*", ".js", ".jsx", ".tsx", ".ts"],
+        extensionAlias: { ".js": [".js", ".ts", ".tsx"] },
         fullySpecified: false,
         alias: {
             'process/browser': require.resolve('process/browser.js')

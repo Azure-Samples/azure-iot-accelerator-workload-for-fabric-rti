@@ -48,6 +48,14 @@ export function IoTSolutionItemDataAgentWizard({
     />
   );
 
+  const SummaryStepWrapper = (props: WizardStepProps) => (
+    <DataAgentSummaryStep
+      {...props}
+      workloadClient={workloadClient}
+      workspaceId={workspaceId}
+    />
+  );
+
   const steps: WizardStep[] = [
     {
       id: "overview",
@@ -59,7 +67,7 @@ export function IoTSolutionItemDataAgentWizard({
     },
     {
       id: "data-source",
-      title: "Modeled Data Source",
+      title: "Modeled data source",
       description: "Select the device data that grounds the agent",
       component: DataSourceStepWrapper,
       validate: (context) => !!context.agentSourceSelected,
@@ -74,9 +82,9 @@ export function IoTSolutionItemDataAgentWizard({
     },
     {
       id: "summary",
-      title: "Ready to Use",
+      title: "Ready to use",
       description: "Review the agent and example questions",
-      component: DataAgentSummaryStep,
+      component: SummaryStepWrapper,
       numbered: false,
       validate: (context) => !!context.agentCreated,
     },

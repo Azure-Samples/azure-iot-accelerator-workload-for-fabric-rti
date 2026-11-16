@@ -1,20 +1,41 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-import React from "react";
+import React, { useState } from "react";
+import { Button, MessageBar, MessageBarBody } from "@fluentui/react-components";
+import { ArrowRight20Regular } from "@fluentui/react-icons";
+import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { WizardStepProps } from "../../../components/Wizard";
-import copilotGuideImg from "../../../assets/items/IoTSolutionItem/ai-guide/copilot.png";
+import { callNavigationNavigate } from "../../../controller/NavigationController";
 import "../IoTSolutionItem.scss";
+import type { DocumentedColumn } from "../DataAgentContext.ts";
+
+interface DataAgentSummaryStepProps extends WizardStepProps {
+  workloadClient: WorkloadClientAPI;
+  workspaceId: string;
+}
 
 /**
  * Summarizes the configured Data Agent and explains how users can begin asking
- * operational questions in Fabric Copilot.
+ * operational questions in the Data Agent.
  */
-export function DataAgentSummaryStep({ wizardContext }: WizardStepProps) {
+export function DataAgentSummaryStep({ wizardContext, workloadClient, workspaceId }: DataAgentSummaryStepProps) {
+  const agentId: string = wizardContext.agentId || "";
   const agentName = wizardContext.agentName || "Data Agent";
   const databaseName = wizardContext.agentDbName || "KQL database";
   const tableName = wizardContext.agentTableName || "Modeled data table";
-  const columns = wizardContext.agentColumns || [];
+  const columns: DocumentedColumn[] = wizardContext.agentColumns || [];
+  const [navigationError, setNavigationError] = useState("");
+
+  const openDataAgent = async () => {
+    if (!workspaceId || !agentId) return;
+    setNavigationError("");
+    try {
+      await callNavigationNavigate(workloadClient, "host", `/groups/${workspaceId}/aiskills/${agentId}`);
+    } catch (error: unknown) {
+      setNavigationError(error instanceof Error ? `Unable to open the Data Agent. ${error.message}` : "Unable to open the Data Agent.");
+    }
+  };
 
   return (
     <div className="iot-solution-step iot-solution-outcome-step">
@@ -36,7 +57,7 @@ export function DataAgentSummaryStep({ wizardContext }: WizardStepProps) {
         <h3 className="iot-solution-outcome-heading">How to use your Data Agent</h3>
         <ul className="iot-solution-outcome-list">
           <li>
-            Open Fabric Copilot, select <strong>{agentName}</strong>, and ask a
+            Open your data agent <strong>{agentName}</strong>, and ask a
             question about your devices or operations.
           </li>
           <li>
@@ -48,17 +69,6 @@ export function DataAgentSummaryStep({ wizardContext }: WizardStepProps) {
             agent instructions if business terminology needs more guidance.
           </li>
         </ul>
-
-        <img
-          src={copilotGuideImg}
-          alt="Fabric Copilot chat with the configured Data Agent"
-          style={{
-            width: "100%",
-            marginTop: "12px",
-            borderRadius: "6px",
-            border: "1px solid var(--colorNeutralStroke2)",
-          }}
-        />
 
         <div className="iot-solution-config-card" style={{ marginTop: "12px" }}>
           <strong>Example questions</strong>
@@ -112,12 +122,12 @@ export function DataAgentSummaryStep({ wizardContext }: WizardStepProps) {
             <span className="iot-solution-flow-node-title">Instructions</span>
             <span className="iot-solution-flow-node-detail">Semantics and query patterns</span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-architecture-node">
             <span className="iot-solution-flow-node-title">Generated KQL</span>
             <span className="iot-solution-flow-node-detail">Executed with user permissions</span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-architecture-node">
             <span className="iot-solution-flow-node-title">Grounded response</span>
             <span className="iot-solution-flow-node-detail">Answers based on Fabric data</span>
@@ -125,8 +135,14 @@ export function DataAgentSummaryStep({ wizardContext }: WizardStepProps) {
         </div>
       </section>
 
-      <div className="iot-solution-finish-hint" style={{ marginTop: "12px" }}>
-        Select <strong>Finish and Close</strong> when you are done.
+      {navigationError && <MessageBar intent="error" role="alert"><MessageBarBody>{navigationError}</MessageBarBody></MessageBar>}
+      <div className="iot-solution-summary-actions">
+        <Button appearance="primary" onClick={openDataAgent} disabled={!workspaceId || !agentId}>
+          Open Data Agent in Fabric
+        </Button>
+        <span className="iot-solution-finish-hint">
+          Select <strong>Finish and Close</strong> when you are done.
+        </span>
       </div>
     </div>
   );

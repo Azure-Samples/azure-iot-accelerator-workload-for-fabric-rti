@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 
 import React from "react";
+import { ArrowRight20Regular } from "@fluentui/react-icons";
 import "../IoTSolutionItem.scss";
 
 /**
@@ -31,9 +32,9 @@ export function DataAgentOverviewStep() {
             represents.
           </li>
           <li>
-            Each row exposes the available telemetry or reported properties as
-            typed model fields, with the latest property state included when
-            available.
+            Each row combines real-time telemetry with the device's latest modeled
+            property values, allowing questions to correlate live behavior with
+            current configuration and operational state.
           </li>
           <li>
             A consistent typed schema reduces ambiguity and helps the agent produce
@@ -48,7 +49,7 @@ export function DataAgentOverviewStep() {
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Modeled device data</span>
             <span className="iot-solution-flow-node-detail">
-              Typed device events and current state
+              Real-time telemetry and current device state
             </span>
           </div>
           <span className="iot-solution-flow-arrow" aria-hidden="true">+</span>
@@ -58,14 +59,14 @@ export function DataAgentOverviewStep() {
               Field meaning, query guidance, and examples
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Fabric Data Agent</span>
             <span className="iot-solution-flow-node-detail">
               Interprets questions and generates queries
             </span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Answers and insights</span>
             <span className="iot-solution-flow-node-detail">
@@ -81,7 +82,8 @@ export function DataAgentOverviewStep() {
           <li>
             A modeled dataset created through the{" "}
             <strong>Model your device data</strong> experience. This supplies the
-            typed fields and model metadata used to ground the agent.
+            typed telemetry, current device properties, and model metadata used to
+            ground the agent.
           </li>
           <li>
             Device events in the modeled data table so the agent can answer

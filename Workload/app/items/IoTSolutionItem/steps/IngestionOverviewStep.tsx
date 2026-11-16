@@ -2,13 +2,16 @@
 // Licensed under the MIT license.
 
 import React from "react";
+import { ArrowRight20Regular } from "@fluentui/react-icons";
+import type { WorkloadClientAPI } from "@ms-fabric/workload-client";
+import { callNavigationOpenInNewBrowserTab } from "../../../controller/NavigationController";
 import "../IoTSolutionItem.scss";
 
 /**
  * Introduces the ingestion workflow in terms of customer outcomes and prerequisites
  * before the user starts configuring individual resources.
  */
-export function IngestionOverviewStep() {
+export function IngestionOverviewStep({ workloadClient }: { workloadClient: WorkloadClientAPI }) {
   return (
     <div className="iot-solution-step iot-solution-outcome-step">
       <div>
@@ -55,12 +58,12 @@ export function IngestionOverviewStep() {
             <span className="iot-solution-flow-node-title">Azure IoT Hub</span>
             <span className="iot-solution-flow-node-detail">Your device data source</span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Eventstreams</span>
             <span className="iot-solution-flow-node-detail">Continuous ingestion</span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-flow-node">
             <span className="iot-solution-flow-node-title">Eventhouse</span>
             <span className="iot-solution-flow-node-detail">Raw telemetry and properties</span>
@@ -75,6 +78,22 @@ export function IngestionOverviewStep() {
             An existing Azure IoT Hub with a system-assigned or user-assigned managed
             identity enabled. An identity is needed for IoT Hub to securely route data
             to your Fabric solution.
+          </li>
+          <li>
+            Optionally, an Azure Device Registry (ADR) namespace{" "}
+            <a
+              href="https://learn.microsoft.com/en-us/azure/iot/device-registry/get-started-azure-device-registry?tabs=azure-portal"
+              onClick={(event) => {
+                event.preventDefault();
+                void callNavigationOpenInNewBrowserTab(workloadClient,
+                  "https://learn.microsoft.com/en-us/azure/iot/device-registry/get-started-azure-device-registry?tabs=azure-portal");
+              }}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--colorBrandForegroundLink)" }}
+            >
+              linked to your IoT Hub
+            </a>. Linking an ADR namespace to your IoT Hub lets you assign a model to your devices later, when you model your data.
           </li>
           <li>
             An existing Eventhouse and KQL Database in this Fabric workspace to store

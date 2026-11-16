@@ -23,14 +23,9 @@ import { FabricPlatformAPIClient } from "../../../clients/FabricPlatformAPIClien
 import { Item } from "../../../clients/FabricPlatformTypes";
 import { getEventhouseItem } from "../eventhouseClient";
 import { acquireTokenWithConsent } from "../../../controller/AuthenticationController";
-import {
-  buildDataAgentQueryGuidelines,
-  buildLatestValueQuery,
-} from "../dataAgentQueryGuidance";
-import {
-  getFabricCreationErrorMessage,
-  parseFabricErrorPayload,
-} from "../FabricCreationError";
+import { buildDataAgentContext, buildDataAgentDataSource, dataAgentExamplesMarkdown, defaultDataAgentName, documentedColumns, requireEventTimeColumn, normalizeDocumentedSource, type DataAgentContext } from "../DataAgentContext.ts";
+import { parseIotMeta, parseKqlTableResult, quoteKqlIdentifier } from "../ModelAuthoring.ts";
+import { DataAgentCreationUnsuccessfulError, resolveCreatedDataAgentId } from "../DataAgentCreation";
 import "../IoTSolutionItem.scss";
 
 const FABRIC_WRITE_SCOPE = "https://api.fabric.microsoft.com/Item.ReadWrite.All";
@@ -46,17 +41,7 @@ interface CreationStatus {
 interface TableColumn {
   name: string;
   type: string;
-}
-
-/** Extract @iot.meta key=value pairs from a KQL table docstring. */
-function parseIotMeta(docstring: string): Record<string, string> {
-  const meta: Record<string, string> = {};
-  const regex = /@iot\.meta\s+(\S+?)=(\S+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(docstring)) !== null) {
-    meta[match[1]] = match[2];
-  }
-  return meta;
+  docstring?: string;
 }
 
 /** Filter tables whose docstring contains @iot.meta tableRole=<role>. */
@@ -71,41 +56,6 @@ function filterTablesByRole(
     const meta = parseIotMeta(doc);
     return meta.tableRole === role;
   });
-}
-
-/** Per-column metadata captured from the device model, embedded in the modeled-data docstring. */
-interface ColumnDoc {
-  kind?: "telemetry" | "property";
-  displayName?: string;
-  unit?: string;
-  component?: string;
-  description?: string;
-}
-
-/**
- * Parse the "Columns (extracted from the device model)" section of a modeled-data table
- * docstring into per-column metadata. The model-setup step writes one line per column as
- * `- <name> — "<displayName>" (<kind>, <type>, unit: <unit>, component: <c>): <description>`;
- * every part except the name is optional.
- */
-function parseColumnDocs(docstring: string): Record<string, ColumnDoc> {
-  const result: Record<string, ColumnDoc> = {};
-  const lineRegex = /^- (\S+?)(?: — "([^"]*)")? \(([^)]*)\)(?::\s*(.*))?$/;
-  for (const raw of docstring.split(/\r?\n/)) {
-    const m = lineRegex.exec(raw.trim());
-    if (!m) continue;
-    const [, name, displayName, attrs, description] = m;
-    const doc: ColumnDoc = {};
-    if (displayName) doc.displayName = displayName;
-    if (description) doc.description = description;
-    for (const attr of attrs.split(",").map((a) => a.trim())) {
-      if (attr === "telemetry" || attr === "property") doc.kind = attr;
-      else if (attr.startsWith("unit:")) doc.unit = attr.slice("unit:".length).trim();
-      else if (attr.startsWith("component:")) doc.component = attr.slice("component:".length).trim();
-    }
-    result[name] = doc;
-  }
-  return result;
 }
 
 interface DataAgentSetupStepProps extends WizardStepProps {
@@ -149,7 +99,7 @@ export function DataAgentSetupStep({
   const [selectedDatabaseName, setSelectedDatabaseName] = useState<string>(
     wizardContext.agentDbName || ""
   );
-  const [loadingDatabases, setLoadingDatabases] = useState(false);
+  const [loadingDatabases, setLoadingDatabases] = useState(phase === "source" && !!wizardContext.agentEhId);
   const [databaseError, setDatabaseError] = useState("");
 
   const [queryServiceUri, setQueryServiceUri] = useState<string>(
@@ -163,7 +113,10 @@ export function DataAgentSetupStep({
       ? { [wizardContext.agentTableName]: wizardContext.agentTableDocstring }
       : {}
   );
-  const [loadingTables, setLoadingTables] = useState(false);
+  const [loadingTables, setLoadingTables] = useState(
+    phase === "source" && !!wizardContext.agentDbId && !!wizardContext.agentDbName && !!wizardContext.agentQueryServiceUri
+  );
+  const [tablesLoaded, setTablesLoaded] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string>(
     wizardContext.agentTableName || ""
   );
@@ -191,8 +144,18 @@ export function DataAgentSetupStep({
   const [agentCreated, setAgentCreated] = useState(
     !!wizardContext.agentCreated
   );
+  const [creationUnconfirmed, setCreationUnconfirmed] = useState(false);
+  const creationRequest = useRef<AbortController>();
+  useEffect(() => () => creationRequest.current?.abort(),
+    [workspaceId, selectedEventhouseId, selectedDatabaseId, selectedDatabaseName, selectedTable, queryServiceUri, agentName, columns, tableDocstrings]);
 
   const invalidateAgent = useCallback(() => {
+    creationRequest.current?.abort();
+    creationRequest.current = undefined;
+    setCreating(false);
+    setCreationUnconfirmed(false);
+    setCreationSteps([]);
+    updateContext("agentCreating", false);
     resetStepsFrom(stepIndex + 1);
     setAgentCreated(false);
     updateContext("agentCreated", false);
@@ -228,13 +191,14 @@ export function DataAgentSetupStep({
   // Load Databases when Eventhouse is selected
   // ---------------------------------------------------------------------------
   const loadDatabases = useCallback(
-    async (eventhouseId: string) => {
+    async (eventhouseId: string, signal: AbortSignal) => {
       if (!eventhouseId || !workspaceId) return;
       setLoadingDatabases(true);
       setDatabaseError("");
       setDatabases([]);
       try {
         const ehMeta = await getEventhouseItem(workloadClient, workspaceId, eventhouseId);
+        if (signal.aborted) return;
         if (!ehMeta) {
           throw new Error(
             "Unable to load information for the selected Eventhouse. Verify that you have access to this Fabric workspace."
@@ -252,9 +216,11 @@ export function DataAgentSetupStep({
         }
         const client = FabricPlatformAPIClient.create(workloadClient);
         const allDbs = await client.items.listItems(workspaceId, { type: "KQLDatabase" });
+        if (signal.aborted) return;
         const eventhouseDbs = (allDbs.value || []).filter((db) => dbIds.includes(db.id));
         setDatabases(eventhouseDbs);
       } catch (err: unknown) {
+        if (signal.aborted) return;
         const msg = err instanceof Error ? err.message : String(err);
         setDatabaseError(
           msg.startsWith("Unable to load information")
@@ -262,7 +228,7 @@ export function DataAgentSetupStep({
             : `Unable to load KQL Databases for the selected Eventhouse. Error: ${msg}`
         );
       } finally {
-        setLoadingDatabases(false);
+        if (!signal.aborted) setLoadingDatabases(false);
       }
     },
     [workloadClient, workspaceId, updateContext]
@@ -272,16 +238,20 @@ export function DataAgentSetupStep({
   // Load Tables when Database is selected
   // ---------------------------------------------------------------------------
   const loadTables = useCallback(
-    async (dbName: string, qsUri: string) => {
+    async (dbName: string, qsUri: string, signal: AbortSignal) => {
       if (!dbName || !qsUri) return;
       setLoadingTables(true);
+      setTablesLoaded(false);
       setTables([]);
       setTableDocstrings({});
       setPermissionError("");
+      setSchemaError("");
       try {
         const accessToken = await acquireTokenWithConsent(workloadClient, KUSTO_SCOPE);
+        if (signal.aborted) return;
         const response = await fetch(`${qsUri}/v1/rest/mgmt`, {
           method: "POST",
+          signal,
           headers: {
             Authorization: `Bearer ${accessToken.token}`,
             "Content-Type": "application/json",
@@ -294,6 +264,7 @@ export function DataAgentSetupStep({
           );
         }
         const result = await response.json();
+        if (signal.aborted) return;
         const rows = result?.Tables?.[0]?.Rows || result?.[0]?.Rows || [];
         const tableNames: string[] = [];
         const docMap: Record<string, string> = {};
@@ -302,12 +273,13 @@ export function DataAgentSetupStep({
           const doc = Array.isArray(r) ? r[1] || "" : r.DocString || "";
           if (name) {
             tableNames.push(name);
-            if (doc) docMap[name] = doc;
+            if (doc) { parseIotMeta(doc); docMap[name] = doc; }
           }
         }
+        const modeledTables = filterTablesByRole(tableNames, docMap, "modeled-data");
         setTables(tableNames);
         setTableDocstrings(docMap);
-        const modeledTables = filterTablesByRole(tableNames, docMap, "modeled-data");
+        setTablesLoaded(true);
         if (selectedTable && !modeledTables.includes(selectedTable)) {
           setSelectedTable("");
           setColumns([]);
@@ -317,15 +289,16 @@ export function DataAgentSetupStep({
           updateContext("agentColumns", []);
         }
       } catch (err: unknown) {
+        if (signal.aborted) return;
         setTables([]);
         const msg = err instanceof Error ? err.message : String(err);
-        setPermissionError(
-          msg.startsWith("Unable to load available tables")
+        const errorMessage = msg.startsWith("Unable to load available tables")
             ? msg
-            : `Unable to load available tables from the selected database. Error: ${msg}`
-        );
+            : `Unable to load available tables from the selected database. Error: ${msg}`;
+        setPermissionError(errorMessage);
+        setSchemaError(errorMessage);
       } finally {
-        setLoadingTables(false);
+        if (!signal.aborted) setLoadingTables(false);
       }
     },
     [workloadClient, selectedTable, updateContext]
@@ -340,25 +313,25 @@ export function DataAgentSetupStep({
 
   // Auto-load databases when eventhouse changes
   useEffect(() => {
-    if (phase === "source" && selectedEventhouseId) loadDatabases(selectedEventhouseId);
+    if (phase !== "source" || !selectedEventhouseId) return undefined;
+    const abort = new AbortController();
+    void loadDatabases(selectedEventhouseId, abort.signal);
+    return () => abort.abort();
   }, [selectedEventhouseId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-load tables when database changes
   useEffect(() => {
-    if (phase === "source" && selectedDatabaseName && queryServiceUri) {
-      loadTables(selectedDatabaseName, queryServiceUri);
-    }
-  }, [selectedDatabaseName, queryServiceUri]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (phase !== "source" || !selectedDatabaseId || !selectedDatabaseName || !queryServiceUri) return undefined;
+    const abort = new AbortController();
+    void loadTables(selectedDatabaseName, queryServiceUri, abort.signal);
+    return () => abort.abort();
+  }, [selectedDatabaseId, selectedDatabaseName, queryServiceUri]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Generate default agent name when table is selected
   useEffect(() => {
     if (phase === "configure" && selectedTable && !agentCreated && !agentName) {
       const doc = tableDocstrings[selectedTable] || "";
-      const meta = parseIotMeta(doc);
-      const baseName = meta.deviceModel
-        ? meta.deviceModel.replace(/[^a-zA-Z0-9_]/g, "_")
-        : selectedTable.replace(/[^a-zA-Z0-9_]/g, "_");
-      const name = `DataAgent_${baseName}_${suffix.current}`;
+      const name = defaultDataAgentName(doc, selectedTable, suffix.current);
       setAgentName(name);
       updateContext("agentName", name);
       updateContext("agentSuffix", suffix.current);
@@ -375,62 +348,62 @@ export function DataAgentSetupStep({
       !selectedDatabaseName ||
       !selectedTable
     ) {
-      return;
+      return undefined;
     }
 
+    const abort = new AbortController();
     const inspect = async () => {
       setInspectingSchema(true);
       setSchemaError("");
       updateContext("agentSourceSelected", false);
       try {
         const accessToken = await acquireTokenWithConsent(workloadClient, KUSTO_SCOPE);
+        if (abort.signal.aborted) return;
         const resp = await fetch(
-          `${queryServiceUri}/v1/rest/query`,
+          `${queryServiceUri}/v1/rest/mgmt`,
           {
             method: "POST",
+            signal: abort.signal,
             headers: {
               Authorization: `Bearer ${accessToken.token}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
               db: selectedDatabaseName,
-              csl: `.show table ${selectedTable} schema as json`,
+              csl: `.show table ${quoteKqlIdentifier(selectedTable)} schema as json`,
             }),
           }
         );
         if (!resp.ok) {
           throw new Error(`Unable to inspect the modeled data table (${resp.status}).`);
         }
-        const result = await resp.json();
-        const schemaJson = result?.Tables?.[0]?.Rows?.[0]?.[1];
-        if (!schemaJson) {
+        const result = parseKqlTableResult(await resp.json());
+        const schemaIndex = result.Columns.findIndex(column => column.ColumnName === "Schema");
+        const schemaJson = result.Rows[0]?.[schemaIndex];
+        if (typeof schemaJson !== "string") {
           throw new Error("The selected table schema could not be retrieved.");
         }
         const schema = JSON.parse(schemaJson);
-        const cols: TableColumn[] = (
-          schema?.OrderedColumns || []
-        ).map((c: any) => ({
-          name: c.Name,
-          type: c.CslType || c.Type,
-        }));
-        if (cols.length === 0) {
-          throw new Error("The selected table does not contain any fields.");
-        }
+        const cols = documentedColumns(schema);
+        requireEventTimeColumn(cols);
+        if (abort.signal.aborted) return;
         setColumns(cols);
         updateContext("agentColumns", cols);
         updateContext("agentTableDocstring", tableDocstrings[selectedTable] || "");
         updateContext("agentSourceSelected", true);
       } catch (err: unknown) {
+        if (abort.signal.aborted) return;
         setColumns([]);
         setSchemaError(err instanceof Error ? err.message : String(err));
         updateContext("agentColumns", []);
         updateContext("agentSourceSelected", false);
       } finally {
-        setInspectingSchema(false);
+        if (!abort.signal.aborted) setInspectingSchema(false);
       }
     };
 
-    inspect();
+    void inspect();
+    return () => abort.abort();
   }, [
     phase,
     queryServiceUri,
@@ -444,143 +417,47 @@ export function DataAgentSetupStep({
   // ---------------------------------------------------------------------------
   // Build AI instructions from schema
   // ---------------------------------------------------------------------------
-  const aiInstructions = useMemo(() => {
-    if (!selectedTable || columns.length === 0) return "";
-
-    const columnDocs = parseColumnDocs(tableDocstrings[selectedTable] || "");
-    const tableMeta = parseIotMeta(tableDocstrings[selectedTable] || "");
-    const deviceModel = tableMeta.deviceModel;
-    const rowKind = tableMeta.rowKind;
-
-    // Build a rich, human-readable description for a column from the device-model metadata,
-    // falling back to a generic label when the model did not declare any.
-    const describe = (c: TableColumn, fallback: string): string => {
-      const meta = columnDocs[c.name];
-      if (!meta) return fallback;
-      const main = [meta.displayName, meta.description].filter(Boolean).join(" — ");
-      const qualifiers: string[] = [];
-      if (meta.unit) qualifiers.push(`unit: ${meta.unit}`);
-      if (meta.component) qualifiers.push(`component: ${meta.component}`);
-      const suffix = qualifiers.length ? `${main ? " " : ""}(${qualifiers.join(", ")})` : "";
-      return `${main}${suffix}` || fallback;
-    };
-
-    const telemetryCols = columns.filter(
-      (c) =>
-        c.name !== "deviceId" &&
-        c.name !== "enqueuedTime" &&
-        (columnDocs[c.name]?.kind === "telemetry" ||
-          (!columnDocs[c.name]?.kind &&
-            ["real", "int", "long", "decimal", "double", "bool"].includes(c.type)))
-    );
-    const propertyCols = columns.filter(
-      (c) =>
-        c.name !== "deviceId" &&
-        c.name !== "enqueuedTime" &&
-        (columnDocs[c.name]?.kind === "property" ||
-          (!columnDocs[c.name]?.kind && !telemetryCols.find((t) => t.name === c.name)))
-    );
-    const rowDescription =
-      rowKind === "property-update"
-        ? "Each row represents a reported property update from an IoT device. Only properties included in that update are populated; other property columns can be null."
-        : "Each row represents a telemetry event from an IoT device, enriched with the device's latest selected reported properties.";
-    let instructions =
-      `You are an IoT data assistant. You help users explore and analyze IoT device data stored in a KQL (Kusto Query Language) database.\n\n` +
-      `## Data Model\n\n` +
-      (deviceModel ? `This data comes from \`${deviceModel}\` devices. ` : ``) +
-      `The main table is \`${selectedTable}\` in the \`${selectedDatabaseName}\` database. ` +
-      `${rowDescription}\n\n` +
-      `### Key Columns\n` +
-      `- \`deviceId\` (string): The unique identifier of the IoT device that produced this reading.\n` +
-      `- \`enqueuedTime\` (datetime): The timestamp when the message was received by IoT Hub. Use this as the primary time axis for all time-based queries.\n\n`;
-
-    if (telemetryCols.length > 0) {
-      instructions += `### Telemetry Columns (real-time measurements)\n`;
-      for (const c of telemetryCols) {
-        instructions += `- \`${c.name}\` (${c.type}): ${describe(c, "Device telemetry value.")}\n`;
-      }
-      instructions += `\n`;
-    }
-
-    if (propertyCols.length > 0) {
-      instructions += rowKind === "property-update"
-        ? `### Property Columns (values included in each reported-property update)\n`
-        : `### Property Columns (device-reported metadata, enriched via last-known-value lookup)\n`;
-      for (const c of propertyCols) {
-        instructions += `- \`${c.name}\` (${c.type}): ${describe(c, "Device-reported property.")}\n`;
-      }
-      instructions += `\n`;
-    }
-
-    instructions += buildDataAgentQueryGuidelines(rowKind);
-
-    return instructions;
+  const documentedSource = useMemo(() => {
+    if (!selectedTable || columns.length === 0) return undefined;
+    return normalizeDocumentedSource({
+      database: selectedDatabaseName, table: selectedTable, docstring: tableDocstrings[selectedTable] || "",
+      columns,
+    });
   }, [selectedTable, selectedDatabaseName, columns, tableDocstrings]);
+  const contextAnalysis = useMemo<{ value?: DataAgentContext; error?: string }>(() => {
+    try { return { value: documentedSource ? buildDataAgentContext(documentedSource) : undefined, error: undefined }; }
+    catch (error: unknown) { return { value: undefined, error: error instanceof Error ? error.message : String(error) }; }
+  }, [documentedSource]);
+  useEffect(() => {
+    if (contextAnalysis.error) {
+      setSchemaError(contextAnalysis.error);
+      if (phase === "configure") setPermissionError(contextAnalysis.error);
+      updateContext("agentSourceSelected", false);
+    }
+  }, [contextAnalysis.error, phase, updateContext]);
+  const sourceContext = contextAnalysis.value;
+  const aiInstructions = sourceContext?.sourceInstructions || "";
 
   // ---------------------------------------------------------------------------
   // Build few-shot examples from schema
   // ---------------------------------------------------------------------------
   const fewShots = useMemo(() => {
-    if (!selectedTable || columns.length === 0) return [];
-
-    const numericCol = columns.find((c) =>
-      ["real", "int", "long", "decimal", "double"].includes(c.type)
-    );
-    const stringCol = columns.find(
-      (c) =>
-        c.type === "string" &&
-        c.name !== "deviceId"
-    );
-
-    const examples: { id: string; question: string; query: string }[] = [
-      {
-        id: crypto.randomUUID(),
-        question: "What devices are in the system?",
-        query: `${selectedTable} | distinct deviceId`,
-      },
-      {
-        id: crypto.randomUUID(),
-        question: "Show me the latest modeled records for a device",
-        query: `${selectedTable} | where deviceId == "device-01" | top 10 by enqueuedTime desc`,
-      },
-    ];
-
-    if (numericCol) {
-      examples.push({
-        id: crypto.randomUUID(),
-        question: `What is the average ${numericCol.name} over the last hour?`,
-        query: `${selectedTable} | where enqueuedTime >= ago(1h) | summarize avg(${numericCol.name}) by bin(enqueuedTime, 5m) | render timechart`,
-      });
-      examples.push({
-        id: crypto.randomUUID(),
-        question: `Show the latest ${numericCol.name} for each device`,
-        query: buildLatestValueQuery(selectedTable, numericCol.name),
-      });
-    }
-
-    if (stringCol) {
-      examples.push({
-        id: crypto.randomUUID(),
-        question: `Show all devices and their ${stringCol.name}`,
-        query: buildLatestValueQuery(selectedTable, stringCol.name),
-      });
-    }
-
-    examples.push({
-      id: crypto.randomUUID(),
-      question: "How many readings per device in the last 24 hours?",
-      query: `${selectedTable} | where enqueuedTime >= ago(24h) | summarize Count=count() by deviceId | order by Count desc`,
-    });
-
-    return examples;
-  }, [selectedTable, columns]);
+    return (sourceContext?.examples || []).map(example => ({ id: crypto.randomUUID(), ...example }));
+  }, [sourceContext]);
 
   // ---------------------------------------------------------------------------
   // Create Data Agent
   // ---------------------------------------------------------------------------
   const createAgent = useCallback(async () => {
-    if (!workspaceId || !selectedDatabaseId || !selectedTable || !agentName.trim()) return;
+    if (!workspaceId || !selectedDatabaseId || !selectedTable || !agentName.trim() || !sourceContext || !documentedSource ||
+        creating || agentCreated || creationUnconfirmed || creationRequest.current) return;
+    const controller = new AbortController();
+    creationRequest.current = controller;
+    const isCurrent = () => creationRequest.current === controller && !controller.signal.aborted;
     setCreating(true);
+    setAgentCreated(false);
+    updateContext("agentCreated", false);
+    updateContext("agentId", "");
     updateContext("agentCreating", true);
     setPermissionError("");
     setCreationSteps([]);
@@ -593,6 +470,7 @@ export function DataAgentSetupStep({
       });
       token = silent.token;
     } catch {
+      if (!isCurrent()) return;
       try {
         await workloadClient.auth.acquireAccessToken({
           additionalScopesToConsent: [FABRIC_WRITE_SCOPE],
@@ -602,14 +480,18 @@ export function DataAgentSetupStep({
         });
         token = retry.token;
       } catch {
-        setPermissionError(
-          "Unable to authenticate with Microsoft Fabric. Verify application permissions and try again."
-        );
-        setCreating(false);
-        updateContext("agentCreating", false);
+        if (isCurrent()) {
+          setPermissionError(
+            "Unable to authenticate with Microsoft Fabric. Verify application permissions and try again."
+          );
+          setCreating(false);
+          updateContext("agentCreating", false);
+          creationRequest.current = undefined;
+        }
         return;
       }
     }
+    if (!isCurrent()) return;
 
     const steps: CreationStatus[] = [
       { step: "Build Data Agent definition", status: "pending" },
@@ -623,75 +505,7 @@ export function DataAgentSetupStep({
 
     const dsName = `kusto-${selectedDatabaseName}`;
 
-    // Map KQL/CslType to .NET type names used by the Data Agent API
-    const kqlToSystemType = (cslType: string): string => {
-      const map: Record<string, string> = {
-        string: "System.String",
-        bool: "System.SByte",
-        datetime: "System.DateTime",
-        int: "System.Int32",
-        long: "System.Int64",
-        real: "System.Double",
-        double: "System.Double",
-        decimal: "System.Decimal",
-        dynamic: "System.Object",
-        guid: "System.Guid",
-        timespan: "System.TimeSpan",
-      };
-      return map[cslType] || "System.Object";
-    };
-
-    // Build the datasource.json
-    const selectedTableMeta = parseIotMeta(tableDocstrings[selectedTable] || "");
-    const modeledTableDescription =
-      selectedTableMeta.rowKind === "property-update"
-        ? "Modeled IoT device property-update events."
-        : "Modeled IoT device events with typed model fields and available device state.";
-    const tableId = crypto.randomUUID();
-    const tableGroupId = crypto.randomUUID();
-    const datasourceConfig = {
-      $schema:
-        "https://developer.microsoft.com/json-schemas/fabric/item/dataAgent/definition/dataSource/1.0.0/schema.json",
-      artifactId: selectedDatabaseId,
-      workspaceId: workspaceId,
-      dataSourceInstructions: null as string | null,
-      displayName: selectedDatabaseName,
-      type: "kusto",
-      userDescription: null as string | null,
-      metadata: {},
-      elements: [
-        {
-          id: tableGroupId,
-          is_selected: false,
-          display_name: "Tables",
-          type: "table_grouping",
-          description: null as string | null,
-          children: [
-            {
-              id: tableId,
-              is_selected: true,
-              display_name: selectedTable,
-              type: "kusto.table",
-              description: `${modeledTableDescription}\n@iot.meta tableRole=modeled-data`,
-              children: columns.map((col) => ({
-                id: col.name,
-                is_selected: true,
-                display_name: col.name,
-                type: "kusto.column",
-                data_type: kqlToSystemType(col.type),
-                description:
-                  col.name === "deviceId"
-                    ? "Unique IoT device identifier"
-                    : col.name === "enqueuedTime"
-                      ? "Timestamp when the message was received by IoT Hub"
-                      : (null as string | null),
-                children: [] as never[],
-              })),
-            },
-          ],
-        },
-      ],
-    };
+    const datasourceConfig = buildDataAgentDataSource(documentedSource, workspaceId, selectedDatabaseId, crypto.randomUUID());
 
     // Build fewshots.json
     const fewShotsConfig = {
@@ -704,7 +518,7 @@ export function DataAgentSetupStep({
     const stageConfig = {
       $schema:
         "https://developer.microsoft.com/json-schemas/fabric/item/dataAgent/definition/stageConfiguration/1.0.0/schema.json",
-      aiInstructions: aiInstructions,
+      aiInstructions: sourceContext.agentInstructions,
     };
 
     // Build data_agent.json
@@ -761,6 +575,11 @@ export function DataAgentSetupStep({
           payload: toB64(datasourceConfig),
           payloadType: "InlineBase64",
         },
+        {
+          path: `Files/Config/published/${dsName}/fewshots.json`,
+          payload: toB64(fewShotsConfig),
+          payloadType: "InlineBase64",
+        },
       ],
     };
 
@@ -771,113 +590,64 @@ export function DataAgentSetupStep({
     steps[1].status = "running";
     setCreationSteps([...steps]);
 
+    let outcomeUnconfirmed = true;
+    setCreationUnconfirmed(true);
     try {
       const resp = await fetch(
         `${FABRIC_API_BASE}/workspaces/${workspaceId}/dataAgents`,
         {
           method: "POST",
+          signal: controller.signal,
+          redirect: "manual",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
             displayName: agentName,
-            description: `AI-powered Data Agent for querying IoT device data from ${selectedTable}`,
+            description: sourceContext.agentDescription,
             definition,
           }),
         }
       );
 
-      if (resp.status === 201 || resp.status === 200) {
-        const result = await resp.json();
-        steps[1].status = "success";
-        setCreationSteps([...steps]);
-        setAgentCreated(true);
-        updateContext("agentCreated", true);
-        updateContext("agentId", result.id);
-        updateContext("agentName", agentName);
-        updateContext("agentEhId", selectedEventhouseId);
-        updateContext("agentEhName", selectedEventhouseName);
-        updateContext("agentDbId", selectedDatabaseId);
-        updateContext("agentDbName", selectedDatabaseName);
-        updateContext("agentTableName", selectedTable);
-        updateContext("agentQueryServiceUri", queryServiceUri);
-      } else if (resp.status === 202) {
-        // LRO — poll for completion
-        const location = resp.headers.get("Location");
-        const retryAfter = parseInt(resp.headers.get("Retry-After") || "2", 10);
-        let succeeded = false;
-
-        if (location) {
-          for (let attempt = 0; attempt < 30; attempt++) {
-            await new Promise((r) => setTimeout(r, retryAfter * 1000));
-            const pollResp = await fetch(location, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (pollResp.status === 200) {
-              const pollResult = await pollResp.json();
-              if (pollResult.status === "Succeeded") {
-                succeeded = true;
-                const agentId = pollResult.id || pollResult.resourceId || "";
-                steps[1].status = "success";
-                setCreationSteps([...steps]);
-                setAgentCreated(true);
-                updateContext("agentCreated", true);
-                updateContext("agentId", agentId);
-                updateContext("agentName", agentName);
-                updateContext("agentEhId", selectedEventhouseId);
-                updateContext("agentEhName", selectedEventhouseName);
-                updateContext("agentDbId", selectedDatabaseId);
-                updateContext("agentDbName", selectedDatabaseName);
-                updateContext("agentTableName", selectedTable);
-                updateContext("agentQueryServiceUri", queryServiceUri);
-                break;
-              }
-              if (pollResult.status === "Failed") {
-                throw new Error(getFabricCreationErrorMessage(
-                  pollResp.status,
-                  pollResult,
-                  "Data Agent",
-                  agentName
-                ));
-              }
-            } else {
-              const errorPayload = parseFabricErrorPayload(await pollResp.text());
-              throw new Error(getFabricCreationErrorMessage(
-                pollResp.status,
-                errorPayload,
-                "Data Agent",
-                agentName
-              ));
-            }
-          }
-          if (!succeeded) {
-            throw new Error(
-              "Data Agent creation is taking longer than expected. Refresh and verify whether the agent was created successfully."
-            );
-          }
-        } else {
-          throw new Error(
-            "Data Agent creation is taking longer than expected. Refresh and verify whether the agent was created successfully."
-          );
-        }
-      } else {
-        const errorPayload = parseFabricErrorPayload(await resp.text());
-        throw new Error(getFabricCreationErrorMessage(
-          resp.status,
-          errorPayload,
-          "Data Agent",
-          agentName
-        ));
-      }
-    } catch (err: unknown) {
-      steps[1].status = "error";
-      steps[1].error = err instanceof Error ? err.message : String(err);
+      if (!isCurrent()) return;
+      outcomeUnconfirmed = resp.status === 0 || resp.status === 200 || resp.status === 201 || resp.status === 202 ||
+        [301, 302, 303, 307, 308].includes(resp.status);
+      setCreationUnconfirmed(outcomeUnconfirmed);
+      const agentId = await resolveCreatedDataAgentId(resp, workspaceId, agentName, token, controller.signal);
+      if (!isCurrent()) return;
+      setCreationUnconfirmed(false);
+      steps[1].status = "success";
       setCreationSteps([...steps]);
+      setAgentCreated(true);
+      updateContext("agentId", agentId);
+      updateContext("agentCreated", true);
+      updateContext("agentName", agentName);
+      updateContext("agentEhId", selectedEventhouseId);
+      updateContext("agentEhName", selectedEventhouseName);
+      updateContext("agentDbId", selectedDatabaseId);
+      updateContext("agentDbName", selectedDatabaseName);
+      updateContext("agentTableName", selectedTable);
+      updateContext("agentQueryServiceUri", queryServiceUri);
+    } catch (err: unknown) {
+      if (!isCurrent()) return;
+      if (err instanceof DataAgentCreationUnsuccessfulError) {
+        outcomeUnconfirmed = false;
+        setCreationUnconfirmed(false);
+      }
+      steps[1].status = "error";
+      const message = err instanceof Error ? err.message : String(err);
+      steps[1].error = outcomeUnconfirmed && !message.includes("before creating another")
+        ? `${message} Verify the existing operation or agent in Fabric before creating another.` : message;
+      setCreationSteps([...steps]);
+    } finally {
+      if (isCurrent()) {
+        setCreating(false);
+        updateContext("agentCreating", false);
+        creationRequest.current = undefined;
+      }
     }
-
-    setCreating(false);
-    updateContext("agentCreating", false);
   }, [
     workspaceId,
     selectedEventhouseId,
@@ -890,32 +660,40 @@ export function DataAgentSetupStep({
     columns,
     tableDocstrings,
     aiInstructions,
+    sourceContext,
+    documentedSource,
     fewShots,
     workloadClient,
     updateContext,
+    creating,
+    agentCreated,
+    creationUnconfirmed,
   ]);
 
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
   const canCreate = !!(
+    workspaceId &&
     selectedEventhouseId &&
     selectedDatabaseId &&
     selectedTable &&
     agentName.trim() &&
     columns.length > 0 &&
+    !!sourceContext &&
     !creating &&
+    !creationUnconfirmed &&
     !agentCreated
   );
 
   if (phase === "source") {
     return (
       <div className="iot-solution-step">
-        <h2 className="iot-solution-step-title">Select Modeled Data Source</h2>
+        <h2 className="iot-solution-step-title">Select modeled data source</h2>
         <Text className="iot-solution-step-description">
           Select the modeled data table that will ground the agent's answers. The
-          table contains typed device events and model metadata, with current
-          property state when available.
+          table contains typed real-time device telemetry enriched with current
+          device state from modeled properties.
         </Text>
         <MessageBar intent="info" style={{ marginTop: "12px" }}>
           <MessageBarBody>
@@ -942,7 +720,14 @@ export function DataAgentSetupStep({
               onOptionSelect={(_e, data) => {
                 const eh = eventhouses.find((item) => item.id === data.optionValue);
                 if (!eh) return;
+                if (eh.id === selectedEventhouseId) return;
                 invalidateAgent();
+                setLoadingDatabases(true);
+                setDatabaseError("");
+                setLoadingTables(false);
+                setTablesLoaded(false);
+                setPermissionError("");
+                setSchemaError("");
                 setSelectedEventhouseId(eh.id);
                 setSelectedEventhouseName(eh.displayName);
                 setSelectedDatabaseId("");
@@ -972,7 +757,7 @@ export function DataAgentSetupStep({
         {selectedEventhouseId && (
           <div className="iot-solution-field">
             <Label className="iot-solution-field-label" required htmlFor="agent-db">
-              KQL Database
+              KQL database
             </Label>
             {loadingDatabases ? (
               <Spinner size="tiny" label="Loading databases..." />
@@ -987,7 +772,12 @@ export function DataAgentSetupStep({
                 onOptionSelect={(_e, data) => {
                   const db = databases.find((item) => item.id === data.optionValue);
                   if (!db) return;
+                  if (db.id === selectedDatabaseId) return;
                   invalidateAgent();
+                  setLoadingTables(true);
+                  setTablesLoaded(false);
+                  setPermissionError("");
+                  setSchemaError("");
                   setSelectedDatabaseId(db.id);
                   setSelectedDatabaseName(db.displayName);
                   setSelectedTable("");
@@ -1011,11 +801,11 @@ export function DataAgentSetupStep({
         {selectedDatabaseId && (
           <div className="iot-solution-field">
             <Label className="iot-solution-field-label" required htmlFor="agent-table">
-              Modeled Data Table
+              Modeled data table
             </Label>
             {loadingTables ? (
               <Spinner size="tiny" label="Loading tables..." />
-            ) : filterTablesByRole(tables, tableDocstrings, "modeled-data").length > 0 ? (
+            ) : tablesLoaded && filterTablesByRole(tables, tableDocstrings, "modeled-data").length > 0 ? (
               <Dropdown
                 id="agent-table"
                 placeholder="Select a modeled data table"
@@ -1039,14 +829,14 @@ export function DataAgentSetupStep({
                   <Option key={table} value={table}>{table}</Option>
                 ))}
               </Dropdown>
-            ) : (
+            ) : tablesLoaded ? (
               <MessageBar intent="warning">
                 <MessageBarBody>
                   No modeled data tables were found in this database. Create modeled
                   data first, then return to set up the Data Agent.
                 </MessageBarBody>
               </MessageBar>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -1107,13 +897,15 @@ export function DataAgentSetupStep({
         </div>
       </div>
 
-      <Text className="iot-solution-resource-name-note">
-        Default resource names are provided below. You can customize them if needed.
-      </Text>
+      {agentCreated && (
+        <Text className="iot-solution-resource-name-note">
+          Default resource names are provided below. You can customize them if needed.
+        </Text>
+      )}
 
       <div className="iot-solution-field">
         <Label className="iot-solution-field-label" required htmlFor="agent-name">
-          Data Agent Name
+          Data Agent name
         </Label>
         <Input
           id="agent-name"
@@ -1130,7 +922,7 @@ export function DataAgentSetupStep({
       {aiInstructions && !agentCreated && (
         <div className="iot-solution-field">
           <Label className="iot-solution-field-label">
-            AI Instructions (auto-generated)
+            AI instructions (auto-generated)
           </Label>
           <Text className="iot-solution-field-hint">
             These instructions become part of the Data Agent and teach it how to
@@ -1151,10 +943,10 @@ export function DataAgentSetupStep({
               wordBreak: "break-word",
             }}
           >
-            {aiInstructions}
+            {(sourceContext?.agentInstructions || "") + "\n\n" + aiInstructions}
             {fewShots.length > 0 && (
               `\n## Examples (${fewShots.length})\n\n` +
-              fewShots.map((example) => `Q: ${example.question}\n${example.query}`).join("\n\n")
+              dataAgentExamplesMarkdown(fewShots)
             )}
           </pre>
         </div>

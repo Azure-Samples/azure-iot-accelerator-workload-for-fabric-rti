@@ -11,11 +11,13 @@ import {
   Button,
   MessageBar,
   MessageBarBody,
+  Tooltip,
 } from "@fluentui/react-components";
 import {
   CheckmarkCircle24Filled,
   DismissCircle24Filled,
   Warning24Filled,
+  ArrowClockwise24Regular,
 } from "@fluentui/react-icons";
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { WizardStepProps } from "../../../components/Wizard";
@@ -440,9 +442,10 @@ export function IoTHubStep({
                     ))
                   )}
                 </Combobox>
-                <Button size="small" appearance="secondary" onClick={() => { void loadHubs(); }} disabled={loadingHubs}>
-                  Refresh
-                </Button>
+                <Tooltip content="Refresh IoT Hubs" relationship="label">
+                  <Button appearance="transparent" size="large" icon={<ArrowClockwise24Regular />}
+                    aria-label="Refresh IoT Hubs" onClick={() => { void loadHubs(); }} disabled={loadingHubs} />
+                </Tooltip>
               </div>
               <Text style={{ display: "block", marginTop: 4, fontSize: "var(--fontSizeBase200)", color: "var(--colorNeutralForeground3)" }}>
                 {hubs.length} IoT Hub{hubs.length === 1 ? "" : "s"} found.

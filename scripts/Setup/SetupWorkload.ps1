@@ -25,7 +25,7 @@
     Overwrite existing files without prompting
 
 .PARAMETER WorkloadVersion
-    Version of the workload (defaults to "1.0.0")
+    Version of the workload (defaults to "2.0.0")
 
 .EXAMPLE
     .\SetupWorkload.ps1 -WorkloadName "Org.MyWorkload"
@@ -49,7 +49,7 @@ param (
     # Force flag to overwrite existing configurations and don't prompt the user
     [boolean]$Force = $false,
     # The version of the workload, used for the manifest package
-    [String]$WorkloadVersion = "1.0.0"
+    [String]$WorkloadVersion = "2.0.0"
 )
 
 # Check for PowerShell 7+

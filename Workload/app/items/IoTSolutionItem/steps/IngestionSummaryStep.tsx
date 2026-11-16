@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 
 import React from "react";
+import { ArrowRight20Regular } from "@fluentui/react-icons";
 import { WizardStepProps } from "../../../components/Wizard";
 import "../IoTSolutionItem.scss";
 
@@ -73,17 +74,17 @@ export function IngestionSummaryStep({ wizardContext }: WizardStepProps) {
             <span className="iot-solution-flow-node-title">Devices</span>
             <span className="iot-solution-flow-node-detail">Telemetry and properties</span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-architecture-node">
             <span className="iot-solution-flow-node-title">{hubName}</span>
             <span className="iot-solution-flow-node-detail">IoT Hub routes</span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-architecture-node">
             <span className="iot-solution-flow-node-title">Eventstreams</span>
             <span className="iot-solution-flow-node-detail">Telemetry and properties</span>
           </div>
-          <span className="iot-solution-flow-arrow" aria-hidden="true">-&gt;</span>
+          <span className="iot-solution-flow-arrow" aria-hidden="true"><ArrowRight20Regular /></span>
           <div className="iot-solution-architecture-node">
             <span className="iot-solution-flow-node-title">{databaseName}</span>
             <span className="iot-solution-flow-node-detail">Raw data tables</span>

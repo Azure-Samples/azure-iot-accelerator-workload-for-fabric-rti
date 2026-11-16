@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-export const IOT_HUB_ROUTING_API_VERSION = "2026-05-01-preview";
+export const IOT_HUB_ROUTING_API_VERSION = "2026-10-01-preview";
 
 interface NamedResource {
   name: string;
@@ -17,6 +17,15 @@ interface RoutingEndpoints {
 export interface IoTHubRoutingConfiguration {
   endpoints?: RoutingEndpoints;
   routes?: NamedResource[];
+  [key: string]: unknown;
+}
+
+interface IoTHubRoutingResource {
+  etag?: unknown;
+  properties: {
+    routing?: IoTHubRoutingConfiguration;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
@@ -44,8 +53,9 @@ function withoutNames(
   return (resources || []).filter((resource) => !names.has(resource.name));
 }
 
-function toEndpoint(endpoint: NativeEventStreamEndpoint): NamedResource {
+function toEndpoint(endpoint: NativeEventStreamEndpoint, current?: NamedResource): NamedResource {
   return {
+    ...current,
     name: endpoint.name,
     endpointUri: endpoint.endpointUri,
     entityPath: endpoint.entityPath,
@@ -56,6 +66,7 @@ function toEndpoint(endpoint: NativeEventStreamEndpoint): NamedResource {
     workspaceId: endpoint.workspaceId,
     eventStreamId: endpoint.eventStreamId,
     sourceId: endpoint.sourceId,
+    messagePayloadFormat: "DOObservationV1",
   };
 }
 
@@ -80,13 +91,14 @@ export function buildNativeEventStreamRouting(
       ...endpoints,
       eventStreams: [
         ...withoutNames(endpoints.eventStreams, endpointNames),
-        toEndpoint(input.telemetryEndpoint),
-        toEndpoint(input.propertiesEndpoint),
+        toEndpoint(input.telemetryEndpoint, endpoints.eventStreams?.find(endpoint => endpoint.name === input.telemetryEndpoint.name)),
+        toEndpoint(input.propertiesEndpoint, endpoints.eventStreams?.find(endpoint => endpoint.name === input.propertiesEndpoint.name)),
       ],
     },
     routes: [
       ...withoutNames(routing.routes, routeNames),
       {
+        ...routing.routes?.find(route => route.name === input.telemetryRouteName),
         name: input.telemetryRouteName,
         source: "DeviceMessages",
         condition: "true",
@@ -94,6 +106,7 @@ export function buildNativeEventStreamRouting(
         isEnabled: true,
       },
       {
+        ...routing.routes?.find(route => route.name === input.propertiesRouteName),
         name: input.propertiesRouteName,
         source: "TwinChangeEvents",
         condition: "true",
@@ -101,5 +114,29 @@ export function buildNativeEventStreamRouting(
         isEnabled: true,
       },
     ],
+  };
+}
+
+export function buildNativeEventStreamHubUpdate(
+  current: IoTHubRoutingResource,
+  input: NativeEventStreamRoutes
+): { body: IoTHubRoutingResource; ifMatch: string } {
+  const etag = current.etag;
+  if (typeof etag !== "string" || !etag || /[\u0000-\u0020\u007f,]/.test(etag) ||
+      etag === "*" || etag === '"*"' || etag.includes('"') && !/^(W\/)?"[^"]+"$/.test(etag)) {
+    throw new Error("The current IoT Hub ETag is missing or invalid. Refresh the Hub before configuring routing.");
+  }
+  if (!current.properties || typeof current.properties !== "object" || Array.isArray(current.properties)) {
+    throw new Error("The current IoT Hub properties are unavailable. Refresh the Hub before configuring routing.");
+  }
+  return {
+    ifMatch: etag,
+    body: {
+      ...current,
+      properties: {
+        ...current.properties,
+        routing: buildNativeEventStreamRouting(current.properties.routing, input),
+      },
+    },
   };
 }

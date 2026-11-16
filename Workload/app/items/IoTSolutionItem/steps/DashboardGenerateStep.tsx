@@ -230,7 +230,7 @@ export function DashboardGenerateStep({
   if (!hasSelection) {
     return (
       <div className="iot-solution-step">
-        <h2 className="iot-solution-step-title">Generate Dashboard</h2>
+        <h2 className="iot-solution-step-title">Generate dashboard</h2>
         <MessageBar intent="warning" style={{ marginTop: "12px" }}>
           <MessageBarBody>
             No fields were selected in the previous step. Go back and inspect your
@@ -243,7 +243,7 @@ export function DashboardGenerateStep({
 
   return (
     <div className="iot-solution-step">
-      <h2 className="iot-solution-step-title">Generate Dashboard</h2>
+      <h2 className="iot-solution-step-title">Generate dashboard</h2>
       <Text className="iot-solution-step-description">
         Create a Real-Time Dashboard from the fields you selected. Numeric
         time-series telemetry is presented as line charts, non-numeric telemetry is
@@ -275,7 +275,7 @@ export function DashboardGenerateStep({
 
       <div className="iot-solution-field" style={{ maxWidth: "400px", marginBottom: "12px" }}>
         <Label className="iot-solution-field-label" htmlFor="dash-name-input">
-          Dashboard Name
+          Dashboard name
         </Label>
         <Input
           id="dash-name-input"

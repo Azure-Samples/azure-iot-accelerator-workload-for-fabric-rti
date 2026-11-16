@@ -32,15 +32,16 @@ module.exports = merge(baseConfig, {
         }),
     ],
     devServer: {
+        client: {
+            overlay: {
+                runtimeErrors: (error) => error.name !== "Error" ||
+                    error.message !== "ResizeObserver loop completed with undelivered notifications.",
+            },
+        },
         port: 60006,
         host: '127.0.0.1',
         open: false,
         historyApiFallback: true,
-        headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET,OPTIONS",
-            "Access-Control-Allow-Headers": "*"
-        },
         setupMiddlewares: function (middlewares, devServer) {
             console.log('*********************************************************************');
             console.log('****             DevServer is listening on port 60006            ****');
@@ -75,20 +76,6 @@ module.exports = merge(baseConfig, {
 
             // Add JSON body parsing middleware for our APIs
             devServer.app.use(express.json());
-            
-            // Add global CORS middleware
-            devServer.app.use((req, res, next) => {
-                res.header('Access-Control-Allow-Origin', '*');
-                res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-                res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
-                
-                // Handle preflight requests
-                if (req.method === 'OPTIONS') {
-                    res.sendStatus(204);
-                } else {
-                    next();
-                }
-            });
             
             // Register the manifest API from our extracted implementation
             registerDevServerApis(devServer.app);

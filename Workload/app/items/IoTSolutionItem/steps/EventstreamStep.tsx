@@ -598,7 +598,7 @@ export function EventstreamStep({
             required
             htmlFor="telemetry-stream"
           >
-            Telemetry Stream Name
+            Telemetry stream name
           </Label>
           <Input
             id="telemetry-stream"
@@ -619,7 +619,7 @@ export function EventstreamStep({
             required
             htmlFor="properties-stream"
           >
-            Properties Stream Name
+            Properties stream name
           </Label>
           <Input
             id="properties-stream"

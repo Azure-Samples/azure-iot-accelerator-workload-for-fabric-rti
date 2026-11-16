@@ -4,6 +4,15 @@
 export const WIZARD_COMPLETION_ERROR =
     "Failed to save your configuration. Review the previous steps and try again.";
 
+export function adjacentWizardStep(
+    currentIndex: number,
+    direction: 1 | -1,
+    totalSteps: number
+): number | undefined {
+    const index = currentIndex + direction;
+    return index >= 0 && index < totalSteps ? index : undefined;
+}
+
 export function getPersistableWizardContext(
     wizardContext: Record<string, any>
 ): Record<string, any> {
@@ -12,7 +21,10 @@ export function getPersistableWizardContext(
             ([key]) => {
                 const normalizedKey = key.toLowerCase();
                 return !normalizedKey.endsWith("connectionstring")
-                    && !normalizedKey.endsWith("creating");
+                    && !normalizedKey.endsWith("creating")
+                    && normalizedKey !== "hubassignmentintent"
+                    && normalizedKey !== "hubassignmenthubsummary"
+                    && normalizedKey !== "hubsourceanalysis";
             }
         )
     );

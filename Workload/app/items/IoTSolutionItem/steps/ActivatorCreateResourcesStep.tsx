@@ -18,6 +18,8 @@ import {
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { WizardStepProps } from "../../../components/Wizard";
 import { acquireTokenWithConsent } from "../../../controller/AuthenticationController";
+import { requireEventTimeColumn } from "../DataAgentContext.ts";
+import { modelResourceNameBase } from "../ModelAuthoring.ts";
 import {
   getFabricCreationErrorMessage,
   hasFabricErrorCode,
@@ -252,7 +254,7 @@ export function ActivatorCreateResourcesStep({
     setCreationSteps([...steps]);
     try {
       if (!connectionId) {
-        const connectionName = `KQL-${selectedDatabaseName}-${nameSuffix}`;
+        const connectionName = `KQL-${wizardContext.actResourceNameBase || modelResourceNameBase("", selectedTable)}-${nameSuffix}`;
         const connBody = {
           connectivityType: "ShareableCloud",
           displayName: connectionName,
@@ -427,6 +429,7 @@ export function ActivatorCreateResourcesStep({
         Name: col.Name,
         CslType: col.CslType,
       }));
+      requireEventTimeColumn(schemaColumns.map(column => ({ name: column.Name, type: column.CslType })));
       if (schemaColumns.length === 0) {
         throw new Error(
           "The selected table contains no data columns and cannot be used for Activator configuration."
@@ -621,6 +624,7 @@ export function ActivatorCreateResourcesStep({
     wizardContext.actConnectionId,
     wizardContext.actActivatorId,
     wizardContext.actEventstreamId,
+    wizardContext.actResourceNameBase,
     stopCreating,
   ]);
 
@@ -636,7 +640,7 @@ export function ActivatorCreateResourcesStep({
 
   return (
     <div className="iot-solution-step">
-      <h2 className="iot-solution-step-title">Create Activator Resources</h2>
+      <h2 className="iot-solution-step-title">Create Activator resources</h2>
       <Text className="iot-solution-step-description">
         Create the secure KQL connection, Eventstream, and Activator that deliver
         new events from
@@ -664,7 +668,7 @@ export function ActivatorCreateResourcesStep({
 
         <div className="iot-solution-field">
           <Label className="iot-solution-field-label" required htmlFor="act-activator-name">
-            Activator Name
+            Activator name
           </Label>
           <Input
             id="act-activator-name"
@@ -679,7 +683,7 @@ export function ActivatorCreateResourcesStep({
 
         <div className="iot-solution-field">
           <Label className="iot-solution-field-label" required htmlFor="act-eventstream-name">
-            Eventstream Name
+            Eventstream name
           </Label>
           <Input
             id="act-eventstream-name"

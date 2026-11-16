@@ -17,6 +17,7 @@ import { FabricPlatformAPIClient } from "../../../clients/FabricPlatformAPIClien
 import { Item } from "../../../clients/FabricPlatformTypes";
 import { getEventhouseItem } from "../eventhouseClient";
 import { acquireTokenWithConsent } from "../../../controller/AuthenticationController";
+import { modelResourceNameBase, parseIotMeta } from "../ModelAuthoring.ts";
 import "../IoTSolutionItem.scss";
 
 const FABRIC_ITEM_READ_SCOPE = "https://api.fabric.microsoft.com/Item.Read.All";
@@ -25,17 +26,6 @@ const KUSTO_SCOPE = "https://kusto.kusto.windows.net/.default";
 interface ActivatorSelectTableStepProps extends WizardStepProps {
   workloadClient: WorkloadClientAPI;
   workspaceId: string;
-}
-
-/** Extract @iot.meta key=value pairs from a KQL table docstring. */
-function parseIotMeta(docstring: string): Record<string, string> {
-  const meta: Record<string, string> = {};
-  const regex = /@iot\.meta\s+(\S+?)=(\S+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(docstring)) !== null) {
-    meta[match[1]] = match[2];
-  }
-  return meta;
 }
 
 /** Filter tables whose docstring contains @iot.meta tableRole=<role>. */
@@ -241,6 +231,7 @@ export function ActivatorSelectTableStep({
           const name = Array.isArray(r) ? r[0] : r.TableName;
           const doc = Array.isArray(r) ? r[1] || "" : r.DocString || "";
           if (name) {
+            if (doc) parseIotMeta(doc);
             tableNames.push(name);
             docMap[name] = doc;
           }
@@ -251,6 +242,7 @@ export function ActivatorSelectTableStep({
         if (selectedTable && !modeledTables.includes(selectedTable)) {
           setSelectedTable("");
           updateContext("actTableName", "");
+          updateContext("actResourceNameBase", "");
           updateContext("actActivatorName", "");
           updateContext("actEventstreamName", "");
           invalidateResources();
@@ -292,19 +284,16 @@ export function ActivatorSelectTableStep({
   // Generate default resource names when a table is selected
   const applyDefaultNames = (table: string, docMap: Record<string, string>) => {
     const doc = docMap[table] || "";
-    const meta = parseIotMeta(doc);
-    const baseName = meta.deviceModel
-      ? meta.deviceModel.replace(/[^a-zA-Z0-9_]/g, "_")
-      : table.replace(/[^a-zA-Z0-9_]/g, "_");
-    updateContext("actActivatorName", `Activator_${baseName}_${suffix.current}`);
-    updateContext("actEventstreamName", `Activator_Stream_${baseName}_${suffix.current}`);
+    const baseName = modelResourceNameBase(doc, table);
+    updateContext("actResourceNameBase", baseName);
+    if (!wizardContext.actActivatorName) updateContext("actActivatorName", `Activator_${baseName}_${suffix.current}`);
+    if (!wizardContext.actEventstreamName) updateContext("actEventstreamName", `Activator_Stream_${baseName}_${suffix.current}`);
   };
 
   useEffect(() => {
     if (
       selectedTable &&
-      Object.keys(tableDocstrings).length > 0 &&
-      (!wizardContext.actActivatorName || !wizardContext.actEventstreamName)
+      Object.prototype.hasOwnProperty.call(tableDocstrings, selectedTable)
     ) {
       applyDefaultNames(selectedTable, tableDocstrings);
     }
@@ -312,7 +301,7 @@ export function ActivatorSelectTableStep({
 
   return (
     <div className="iot-solution-step">
-      <h2 className="iot-solution-step-title">Select Data for Monitoring</h2>
+      <h2 className="iot-solution-step-title">Select data for monitoring</h2>
       <Text className="iot-solution-step-description">
         Select the modeled dataset that Activator will evaluate as new device
         events arrive. Modeled data is recommended because it provides
@@ -360,6 +349,7 @@ export function ActivatorSelectTableStep({
                   updateContext("actDatabaseId", "");
                   updateContext("actDatabaseName", "");
                   updateContext("actTableName", "");
+                  updateContext("actResourceNameBase", "");
                   loadDatabases(eh.id);
                 }
               }}
@@ -399,6 +389,7 @@ export function ActivatorSelectTableStep({
                     updateContext("actDatabaseId", db.id);
                     updateContext("actDatabaseName", db.displayName);
                     updateContext("actTableName", "");
+                    updateContext("actResourceNameBase", "");
                   }
                 }}
                 style={{ minWidth: "320px" }}
@@ -415,7 +406,7 @@ export function ActivatorSelectTableStep({
         {selectedDatabaseName && (
           <div className="iot-solution-field">
             <Label className="iot-solution-field-label" required htmlFor="act-table-dropdown">
-              Modeled Data Table
+              Modeled data table
             </Label>
             {loadingTables ? (
               <Spinner size="tiny" label="Loading tables..." />
