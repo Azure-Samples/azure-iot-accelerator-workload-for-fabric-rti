@@ -1,0 +1,45 @@
+{
+  "name": "fabric-iot-release-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "e2e": "tsx src/run.ts",
+    "auth": "tsx src/auth-cli.ts",
+    "configure:development": "tsx src/development-cli.ts",
+    "plan": "tsx src/plan-cli.ts",
+    "preflight": "playwright test deployment.spec.ts",
+    "test:item": "playwright test item.spec.ts",
+    "provision": "tsx src/provision-cli.ts",
+    "provision:linked": "tsx src/linking-cli.ts",
+    "test:ingestion": "playwright test scenarios/ingestion/nonlinked.spec.ts",
+    "test:combined": "playwright test scenarios/ingestion/combined.spec.ts",
+    "test:linked-only": "playwright test scenarios/ingestion/linked-only.spec.ts",
+    "test:modeling:nonlinked": "playwright test scenarios/modeling/nonlinked-dtdl.spec.ts",
+    "test:modeling:combined": "playwright test scenarios/modeling/combined-wot.spec.ts",
+    "test:modeling:linked-only": "playwright test scenarios/modeling/linked-only-wot.spec.ts",
+    "test:dashboards": "playwright test scenarios/dashboards",
+    "test:data-agents": "playwright test scenarios/data-agents",
+    "test:activator": "playwright test scenarios/activator",
+    "cleanup": "tsx src/cleanup-cli.ts",
+    "test:video": "playwright test recording.spec.ts",
+    "test:pages": "playwright test scenario-pages.spec.ts",
+    "install:video": "node scripts/install-video.mjs",
+    "check": "tsc --noEmit",
+    "test:unit": "node scripts/test-unit.mjs"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.14.1",
+    "azure-iot-device": "^1.18.4",
+    "azure-iot-device-mqtt": "^1.16.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.7.3"
+  }
+}
