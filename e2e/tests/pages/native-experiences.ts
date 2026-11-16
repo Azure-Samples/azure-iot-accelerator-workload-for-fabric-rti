@@ -130,25 +130,51 @@ export async function activator(page: Page, plan: RunPlan, id: string, streamNam
   await closeOwnedItemTabs(page, plan);
   await page.goto(nativeItemUrl(plan, "reflexes", id), { waitUntil: "domcontentloaded" });
   const explorer: NativeControl = frame => frame.getByRole("tree", { name: "Artifact document tree", exact: true });
-  const introduction: NativeControl = frame => frame.getByRole("dialog", { name: "Start monitoring your real-time data", exact: true });
+  const introductionTitle = "Start monitoring your real-time data";
+  const introduction: NativeControl = frame => frame.getByRole("dialog", { includeHidden: true }).filter({ hasText: introductionTitle });
   const frame = await surface(page, value => introduction(value).or(explorer(value)).first());
-  const dialog = introduction(frame);
-  if (await dialog.isVisible()) {
-    await dialog.getByRole("button", { name: "Close dialog", exact: true }).describe("Close Activator introduction without creating rules").click();
-    await expect(dialog).toHaveCount(0);
-  }
   const entries = explorer(frame).getByRole("treeitem");
-  await expect(entries).toHaveCount(2);
-  await expect(explorer(frame).getByRole("treeitem", { name: "Main", exact: true })).toHaveCount(1);
-  await entries.last().describe("Open the single owned incoming event stream (native display name may be shortened)").click();
-  await frame.getByRole("tab", { name: "Live feed", exact: true }).click();
-  await expect(frame.getByText("deviceId", { exact: true }).first()).toBeVisible({ timeout: 120_000 });
-  const row = frame.getByRole("row").filter({ hasText: deviceId }).filter({ hasText: "1.0.0" })
-    .filter({ hasText: `/streams/${streamName}` });
-  await expect(row.first()).toBeVisible({ timeout: 180_000 });
-  await writeFile(join(artifacts, "runs", plan.runId, `activator-arrival-${id}.json`),
-    JSON.stringify({ id, streamName, deviceId, incomingRows: await row.allTextContents(),
-      scope: "Actual incoming Activator events, not rule firing or external actions" }, null, 2));
-  plan.verification[`activator.${id}.arrival`] = "actual-incoming-activator-events-observed";
-  await updatePlan(plan);
+  const liveFeed = frame.getByRole("tab", { name: "Live feed", exact: true });
+  const introductionGuard = page.locator("body");
+  await page.addLocatorHandler(introductionGuard, async () => {
+    for (const candidate of page.frames()) {
+      if (candidate.isDetached()) continue;
+      const dialog = introduction(candidate);
+      if (!await dialog.isVisible()) continue;
+      await expect(dialog.getByRole("heading", { name: introductionTitle, exact: true, includeHidden: true })).toBeVisible();
+      const evidence = {
+        id, frameOrigin: new URL(candidate.url()).origin,
+        namedDialogVisible: await candidate.getByRole("dialog", { name: introductionTitle, exact: true }).isVisible(),
+        ariaHidden: await dialog.evaluate(element => !!element.closest('[aria-hidden="true"]')),
+        title: introductionTitle, dismissed: false,
+      };
+      const evidencePath = join(artifacts, "runs", plan.runId, `activator-introduction-${id}.json`);
+      await writeFile(evidencePath, JSON.stringify(evidence, null, 2));
+      await dialog.getByRole("button", { name: "Close dialog", exact: true, includeHidden: true }).describe("Close Activator introduction without creating rules").click();
+      await expect(dialog).toBeHidden();
+      evidence.dismissed = true;
+      await writeFile(evidencePath, JSON.stringify(evidence, null, 2));
+      await expect(entries).toHaveCount(2);
+      await expect(explorer(frame).getByRole("treeitem", { name: "Main", exact: true })).toHaveCount(1);
+      await entries.last().describe("Restore the owned incoming event stream after the introduction").click();
+      await liveFeed.click();
+    }
+  }, { noWaitAfter: true });
+  try {
+    await expect(entries).toHaveCount(2);
+    await expect(explorer(frame).getByRole("treeitem", { name: "Main", exact: true })).toHaveCount(1);
+    await entries.last().describe("Open the single owned incoming event stream (native display name may be shortened)").click();
+    await liveFeed.click();
+    await expect(frame.getByText("deviceId", { exact: true }).first()).toBeVisible({ timeout: 120_000 });
+    const row = frame.getByRole("row").filter({ hasText: deviceId }).filter({ hasText: "1.0.0" })
+      .filter({ hasText: `/streams/${streamName}` });
+    await expect(row.first()).toBeVisible({ timeout: 180_000 });
+    await writeFile(join(artifacts, "runs", plan.runId, `activator-arrival-${id}.json`),
+      JSON.stringify({ id, streamName, deviceId, incomingRows: await row.allTextContents(),
+        scope: "Actual incoming Activator events, not rule firing or external actions" }, null, 2));
+    plan.verification[`activator.${id}.arrival`] = "actual-incoming-activator-events-observed";
+    await updatePlan(plan);
+  } finally {
+    await page.removeLocatorHandler(introductionGuard);
+  }
 }

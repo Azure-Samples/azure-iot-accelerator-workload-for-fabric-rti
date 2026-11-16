@@ -519,7 +519,21 @@ for (const [kind, scenario] of [
         ${openOwnedName ? `<div role="menuitem" aria-label="${openOwnedName} - Workspace">${openOwnedName}
           <button data-testid="tab-close" onclick="window.recordOwnedTabClose(${JSON.stringify(openOwnedName).replace(/"/g, "&quot;")}).then(()=>this.parentElement.remove())"></button></div>` : ""}
         </nav>`;
-      let html = "", agentReply = "Firmware: 1.0.0";
+      let html = "", agentReply = "Firmware: 1.0.0", portalIntroduction = false;
+      const activatorHtml = (lateIntroduction: boolean) => `<div role="tree" aria-label="Artifact document tree">
+          <div role="treeitem" aria-label="Main"><div role="group"><div role="treeitem" onclick="openStream()">owned-</div></div></div>
+        </div><button id="live-feed" role="tab" hidden onclick="document.querySelector('table').hidden=false">Live feed</button>
+        <table hidden><tr><th>deviceId</th><th>firmwareVersion</th><th>___subject</th></tr><tr><td>${deviceId}</td><td>1.0.0</td><td>/streams/owned-stream</td></tr></table>
+        ${portalIntroduction ? "" : `<div id="introduction" role="dialog" aria-label="Start monitoring your real-time data" ${lateIntroduction ? "hidden" : ""}>
+          <h2>Start monitoring your real-time data</h2>
+          <button onclick="introductionClosed=true;this.parentElement.remove()">Close dialog</button></div>`}
+        <script>
+          var introductionClosed=false;
+          function openStream() {
+            if(!introductionClosed){${portalIntroduction ? "parent.showActivatorIntroduction()" : "document.querySelector('#introduction').hidden=false"};return;}
+            document.querySelector('#live-feed').hidden=false;
+          }
+        </script>`;
       if (kind === "dashboard") html = `
         <button aria-label="Device ID">Choose device</button>
         <button onclick="document.querySelector('#data').hidden=false;document.querySelector('#data').setAttribute('aria-hidden','true');document.querySelector('#tip').hidden=false">${deviceId}</button>
@@ -540,11 +554,7 @@ for (const [kind, scenario] of [
           }</script>`;
       if (kind === "agent") html = `<p>Example firmware: 1.0.0</p>
         <textarea onkeydown="if(event.key==='Enter'){event.preventDefault();document.querySelector('#answer').textContent='Firmware: 1.0.0';}"></textarea><p id="answer"></p>`;
-      if (kind === "activator") html = `<div role="tree" aria-label="Artifact document tree">
-          <div role="treeitem" aria-label="Main"><div role="group"><div role="treeitem" onclick="document.querySelector('table').hidden=false">owned-</div></div></div>
-        </div><button role="tab">Live feed</button>
-        <table hidden><tr><th>deviceId</th><th>firmwareVersion</th><th>___subject</th></tr><tr><td>${deviceId}</td><td>1.0.0</td><td>/streams/owned-stream</td></tr></table>
-        <div role="dialog" aria-label="Start monitoring your real-time data"><button onclick="this.parentElement.remove()">Close dialog</button></div>`;
+      if (kind === "activator") html = activatorHtml(false);
       await context.route("**/*", route => {
         const url = new URL(route.request().url()), host = url.hostname;
         const main = route.request().isNavigationRequest() && route.request().frame() === page.mainFrame();
@@ -556,7 +566,24 @@ for (const [kind, scenario] of [
           nativeNavigationHadCapacity.push(openOwnedName === "");
           openOwnedName = nativeName;
         }
-        let body = host === "dataexplorer.azure.com" || host === "login.microsoftonline.com"
+        let body = kind === "activator" && portalIntroduction && url.pathname === `/native-activator-introduction/${id}`
+          ? `<div role="dialog" aria-hidden="true" hidden><h2>Start monitoring your real-time data</h2>
+              <button onclick="parent.closeActivatorIntroduction()">Close dialog</button></div>`
+          : kind === "activator" && portalIntroduction && main
+            ? `<iframe id="native-activator" src="${workspace.origin}/native-activator/${id}"></iframe>
+              <iframe id="activator-introduction" src="${workspace.origin}/native-activator-introduction/${id}" hidden style="position:fixed;inset:0;width:100vw;height:100vh;border:0;z-index:10"></iframe>
+              <script>
+                function showActivatorIntroduction() {
+                  const portal=document.querySelector('#activator-introduction');
+                  portal.hidden=false;portal.contentDocument.querySelector('[role=dialog]').hidden=false;
+                }
+                function closeActivatorIntroduction() {
+                  const portal=document.querySelector('#activator-introduction');
+                  portal.contentDocument.querySelector('[role=dialog]').remove();portal.hidden=true;
+                  document.querySelector('#native-activator').contentWindow.introductionClosed=true;
+                }
+              </script>`
+          : host === "dataexplorer.azure.com" || host === "login.microsoftonline.com"
           ? '<body><script>sessionStorage.setItem("synthetic-frame", "local-only")</script></body>'
           : kind === "dashboard" && host === "native-check.powerbi.com"
             ? html + `<script>if(!location.search) document.querySelector('[aria-label="Device ID"]').onclick=()=>parent.postMessage('remount-native-check',${JSON.stringify(new URL(plan.target.workspaceUrl).origin)});</script>`
@@ -602,10 +629,17 @@ for (const [kind, scenario] of [
         agentReply = "Firmware: 11.0.0";
         await expect(native.dataAgent(page, plan, path, "Modeled_owned", deviceId)).rejects.toThrow("exact fixture firmware");
       }
-      if (kind === "activator") await native.activator(page, plan, id, "owned-stream", deviceId);
+      if (kind === "activator") {
+        await native.activator(page, plan, id, "owned-stream", deviceId);
+        portalIntroduction = true;
+        html = activatorHtml(true);
+        await native.activator(page, plan, id, "owned-stream", deviceId);
+        await expect(page.locator("#activator-introduction")).toBeHidden();
+        await expect(page.frameLocator("#activator-introduction").getByRole("dialog")).toHaveCount(0);
+      }
       expect(new URL(page.url()).searchParams.get("ctid")).toBe(config.tenantId);
-      expect(nativeNavigationHadCapacity).toEqual(kind === "activator" ? [true] : [true, true]);
-      expect(closedNames).toEqual(kind === "activator" ? [plan.fabric.itemName] : [plan.fabric.itemName, nativeName]);
+      expect(nativeNavigationHadCapacity).toEqual([true, true]);
+      expect(closedNames).toEqual([plan.fabric.itemName, nativeName]);
       await expect(page.locator("[data-foreign-tab]")).toHaveCount(19);
     } finally {
       for (const file of await readdir(directory)) await unlink(join(directory, file));

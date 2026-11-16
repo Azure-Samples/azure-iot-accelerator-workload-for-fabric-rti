@@ -78,7 +78,9 @@ export class ActivatorAttempt {
     };
     const result = new ActivatorAttempt(cloud, plan, journal,
       join(artifacts, "runs", plan.runId, `activator-attempt-${attempt}.json`),
-      new Set(beforeConnections.map(item => text(item.displayName, "connection name"))));
+      new Set(beforeConnections.flatMap(item =>
+        item.connectivityType === "PersonalCloud" && (item.displayName === null || item.displayName === undefined)
+          ? [] : [text(item.displayName, "connection name")])));
     await result.persist();
     return result;
   }

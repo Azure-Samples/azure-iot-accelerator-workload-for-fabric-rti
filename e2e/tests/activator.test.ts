@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { readdir, rmdir, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -12,6 +12,31 @@ const input = { name: "owned-stream-stream", schema: { columns: [{ name: "device
 const definition = (overrides: Record<string, unknown> = {}) => [
   { path: "eventstream.json", value: { destinations: [{ ...destination, inputSchemas: [input], ...overrides }] } },
 ];
+
+const config = runConfig({
+  E2E_TENANT_ID: "00000000-0000-4000-8000-000000000001",
+  E2E_WORKSPACE_ID: "00000000-0000-4000-8000-000000000002",
+  E2E_SUBSCRIPTION_ID: "00000000-0000-4000-8000-000000000003",
+  E2E_LOCATION: "australiaeast", E2E_DEPLOYMENT: "development",
+});
+
+async function planForTest(context: TestContext) {
+  const plan = createPlan(config), manifest = await writePlan(plan);
+  context.after(async () => {
+    for (const file of await readdir(dirname(manifest))) await unlink(join(dirname(manifest), file));
+    await rmdir(dirname(manifest));
+  });
+  return plan;
+}
+
+class InventoryCloud extends Cloud {
+  items: Record<string, unknown>[] = [];
+  globalConnections: Record<string, unknown>[] = [];
+  override async fabric(): Promise<unknown> { return { value: this.items }; }
+  override async request(url: string): Promise<unknown> {
+    return url.endsWith("/v1/connections") ? { value: this.globalConnections } : undefined;
+  }
+}
 
 test("Activator schemas come from the native authoring definition, not the simplified runtime topology", () => {
   assert.equal(activatorInputSchema(definition(), destination), input);
@@ -28,26 +53,37 @@ test("Activator authoring schema must match the exact runtime destination and ta
   assert.throws(() => activatorInputSchema([], destination));
 });
 
-test("a confirmed deletion is terminal even when the original create response was lost", async context => {
-  const config = runConfig({
-    E2E_TENANT_ID: "00000000-0000-4000-8000-000000000001",
-    E2E_WORKSPACE_ID: "00000000-0000-4000-8000-000000000002",
-    E2E_SUBSCRIPTION_ID: "00000000-0000-4000-8000-000000000003",
-    E2E_LOCATION: "australiaeast", E2E_DEPLOYMENT: "development",
-  });
-  const plan = createPlan(config), manifest = await writePlan(plan);
-  context.after(async () => {
-    for (const file of await readdir(dirname(manifest))) await unlink(join(dirname(manifest), file));
-    await rmdir(dirname(manifest));
-  });
-  class DeletedCloud extends Cloud {
-    items: Record<string, unknown>[] = [];
-    override async fabric(): Promise<unknown> { return { value: this.items }; }
-    override async request(url: string): Promise<unknown> {
-      return url.endsWith("/v1/connections") ? { value: [] } : undefined;
-    }
+test("unnamed personal connections remain protected baseline IDs, not Activator-owned resources", async context => {
+  const plan = await planForTest(context), cloud = new InventoryCloud(config);
+  const personalId = "00000000-0000-4000-8000-000000000009";
+  cloud.globalConnections = [
+    { id: personalId, connectivityType: "PersonalCloud", displayName: null },
+    { id: "00000000-0000-4000-8000-000000000010", connectivityType: "PersonalCloud" },
+    { id: "00000000-0000-4000-8000-000000000011", connectivityType: "ShareableCloud", displayName: "Existing connection" },
+  ];
+  const attempt = await ActivatorAttempt.begin(cloud, plan, "regular");
+  assert.deepEqual(attempt.journal.baselineConnections, cloud.globalConnections.map(connection => connection.id));
+  const connection = { kind: "Connection" as const, name: "KQL-owned", requested: true, status: 201 };
+  attempt.journal.resources.push(connection);
+  cloud.globalConnections = [{ id: personalId, displayName: connection.name, connectivityType: "ShareableCloud" }];
+  await assert.rejects(attempt.reconcile(), /collides with pre-existing ownership/);
+});
+
+test("Activator inventory still rejects missing required names and malformed baseline IDs", async context => {
+  const plan = await planForTest(context), cloud = new InventoryCloud(config);
+  for (const connection of [
+    { id: "00000000-0000-4000-8000-000000000009", connectivityType: "ShareableCloud", displayName: null },
+    { id: "00000000-0000-4000-8000-000000000009", connectivityType: "PersonalCloud", displayName: "" },
+    { id: "not-a-guid", connectivityType: "PersonalCloud", displayName: null },
+  ]) {
+    cloud.globalConnections = [connection];
+    await assert.rejects(ActivatorAttempt.begin(cloud, plan, "regular"), /connection name|baseline connection ID/);
   }
-  const cloud = new DeletedCloud(config), attempt = await ActivatorAttempt.begin(cloud, plan, "regular");
+});
+
+test("a confirmed deletion is terminal even when the original create response was lost", async context => {
+  const plan = await planForTest(context), cloud = new InventoryCloud(config);
+  const attempt = await ActivatorAttempt.begin(cloud, plan, "regular");
   const resource = attempt.journal.resources[0]!;
   resource.requested = true;
   resource.id = "00000000-0000-4000-8000-000000000009";
